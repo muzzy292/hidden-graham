@@ -1,0 +1,37 @@
+// Paste these rules into:
+// Firebase Console → Firestore → Rules
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Allowlist — only allowed users can read; only allowed users can write
+    match /config/allowlist {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+        && request.auth.token.email in resource.data.emails;
+    }
+
+    // Shared household items — any allowed user can read/write
+    match /household/shared/items/{itemId} {
+      allow read, write: if request.auth != null
+        && _isAllowed(request.auth.token.email);
+    }
+
+    // User docs — owner only
+    match /users/{userId} {
+      allow read, write: if request.auth != null
+        && request.auth.uid == userId;
+
+      // Private settings sub-collection (Claude API key etc.)
+      match /private/{doc} {
+        allow read, write: if request.auth != null
+          && request.auth.uid == userId;
+      }
+    }
+
+    function _isAllowed(email) {
+      return email in get(/databases/$(database)/documents/config/allowlist).data.emails;
+    }
+  }
+}

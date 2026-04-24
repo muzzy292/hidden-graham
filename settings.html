@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Settings — Hidden Graham</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<nav>
+  <span class="logo">🏠 Hidden Graham</span>
+  <div class="nav-right">
+    <a href="app.html" class="btn btn-ghost btn-sm">← Back to Matrix</a>
+    <button class="btn btn-ghost btn-sm" id="btn-signout">Sign out</button>
+  </div>
+</nav>
+
+<div class="settings-wrap">
+  <h2>Settings</h2>
+
+  <!-- Household members -->
+  <div class="settings-section">
+    <h3>👥 Household Members</h3>
+    <p style="font-size:13px;color:var(--text-muted);margin-bottom:14px">
+      Both Gmail accounts listed here can access the app. Add your partner's email to grant them access.
+    </p>
+    <div id="allowed-list" style="margin-bottom:12px;display:flex;flex-direction:column;gap:6px"></div>
+    <div style="display:flex;gap:8px">
+      <input type="email" id="add-email" placeholder="partner@gmail.com" style="flex:1">
+      <button class="btn btn-primary" id="btn-add-email">Add</button>
+    </div>
+    <div id="email-msg" style="font-size:12px;margin-top:8px"></div>
+  </div>
+
+  <!-- Claude API Key -->
+  <div class="settings-section">
+    <h3>✨ Claude AI (optional)</h3>
+    <p style="font-size:13px;color:var(--text-muted);margin-bottom:14px">
+      Powers "Suggest quadrant", "Break it down", and "This Week's Review".
+      Get your key at <a href="https://console.anthropic.com" target="_blank" style="color:var(--accent)">console.anthropic.com</a>.
+      Stored in your private Firestore document — never shared or committed to GitHub.
+    </p>
+    <div style="display:flex;gap:8px">
+      <input type="password" id="claude-key" placeholder="sk-ant-…" style="flex:1;font-family:monospace">
+      <button class="btn btn-primary" id="btn-save-key">Save</button>
+    </div>
+    <div id="key-status" style="font-size:12px;margin-top:8px;color:var(--text-muted)"></div>
+  </div>
+
+  <!-- Google Calendar -->
+  <div class="settings-section">
+    <h3>📅 Google Calendar</h3>
+    <p style="font-size:13px;color:var(--text-muted);margin-bottom:14px">
+      Connect Google Calendar to push due dates directly to your calendar from any item card.
+      Requires the Google Calendar API to be enabled in your Google Cloud Console
+      (see <code>firebase-config.js</code> for instructions).
+    </p>
+    <div class="settings-row">
+      <div>
+        <div id="cal-status" style="font-size:13px">Not connected</div>
+      </div>
+      <button class="btn btn-secondary" id="btn-connect-cal">Connect Google Calendar</button>
+    </div>
+  </div>
+
+  <!-- Danger zone -->
+  <div class="settings-section" style="border-color:rgba(255,107,107,0.3)">
+    <h3 style="color:var(--danger)">⚠ Danger Zone</h3>
+    <div class="settings-row">
+      <div>
+        <div style="font-size:14px;font-weight:500">Sign out</div>
+        <p>You'll need to sign in again with Google.</p>
+      </div>
+      <button class="btn btn-danger" id="btn-signout2">Sign Out</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="hidden"></div>
+
+<script src="firebase-config.js"></script>
+<script type="module">
+  import { initFirebase, onAuth, signOutUser, getAllowedEmails, addAllowedEmail } from "./js/auth.js";
+  import { getUserSettings, saveUserSettings } from "./js/db.js";
+  import { initCalendar, connectCalendar } from "./js/calendar.js";
+
+  initFirebase();
+
+  let _user = null;
+
+  onAuth(async user => {
+    if (!user) { window.location.href = "index.html"; return; }
+    _user = user;
+
+    // Load allowed emails
+    _refreshEmailList();
+
+    // Load saved Claude key hint
+    const settings = await getUserSettings(user.uid);
+    if (settings.claudeApiKey) {
+      document.getElementById("key-status").textContent = "✓ API key saved";
+      document.getElementById("claude-key").placeholder = "sk-ant-…… (key saved, re-enter to update)";
+    }
+
+    // Calendar status
+    if (settings.calendarConnected) {
+      document.getElementById("cal-status").textContent = "✓ Connected";
+      document.getElementById("cal-status").style.color = "var(--success)";
+    }
+  });
+
+  // ── Allowed emails ──
+  async function _refreshEmailList() {
+    const emails = await getAllowedEmails();
+    const list = document.getElementById("allowed-list");
+    list.innerHTML = emails.map(e => `
+      <div style="display:flex;align-items:center;justify-content:space-between;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px 12px;font-size:13px">
+        <span>${e}</span>
+        ${e === _user?.email ? '<span style="font-size:11px;color:var(--text-muted)">(you)</span>' : ""}
+      </div>
+    `).join("");
+  }
+
+  document.getElementById("btn-add-email").addEventListener("click", async () => {
+    const email = document.getElementById("add-email").value.trim().toLowerCase();
+    const msg   = document.getElementById("email-msg");
+    if (!email || !email.includes("@")) { msg.textContent = "Enter a valid email."; return; }
+    await addAllowedEmail(email);
+    document.getElementById("add-email").value = "";
+    msg.style.color = "var(--success)";
+    msg.textContent = `${email} added.`;
+    _refreshEmailList();
+    setTimeout(() => msg.textContent = "", 3000);
+  });
+
+  // ── Claude API key ──
+  document.getElementById("btn-save-key").addEventListener("click", async () => {
+    const key    = document.getElementById("claude-key").value.trim();
+    const status = document.getElementById("key-status");
+    if (!key.startsWith("sk-ant-")) {
+      status.style.color = "var(--danger)";
+      status.textContent = "Key should start with sk-ant-";
+      return;
+    }
+    await saveUserSettings(_user.uid, { claudeApiKey: key });
+    document.getElementById("claude-key").value = "";
+    document.getElementById("claude-key").placeholder = "sk-ant-…… (key saved, re-enter to update)";
+    status.style.color = "var(--success)";
+    status.textContent = "✓ API key saved";
+  });
+
+  // ── Google Calendar ──
+  document.getElementById("btn-connect-cal").addEventListener("click", async () => {
+    try {
+      await initCalendar();
+      await connectCalendar();
+      await saveUserSettings(_user.uid, { calendarConnected: true });
+      document.getElementById("cal-status").textContent = "✓ Connected";
+      document.getElementById("cal-status").style.color = "var(--success)";
+      _showToast("Google Calendar connected!", "success");
+    } catch (e) {
+      _showToast("Calendar connection failed: " + (e.message || e), "error");
+    }
+  });
+
+  // ── Sign out ──
+  document.getElementById("btn-signout").addEventListener("click", signOutUser);
+  document.getElementById("btn-signout2").addEventListener("click", signOutUser);
+
+  function _showToast(msg, type = "success") {
+    const t = document.getElementById("toast");
+    t.textContent = msg;
+    t.className = type;
+    t.classList.remove("hidden");
+    setTimeout(() => t.classList.add("hidden"), 3500);
+  }
+</script>
+</body>
+</html>

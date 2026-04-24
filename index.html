@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hidden Graham</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+<div class="login-page">
+  <div class="login-card">
+    <h1>🏠 Hidden Graham</h1>
+    <p>Your shared space to prioritise what matters</p>
+    <button class="btn btn-google" id="btn-signin">
+      <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google">
+      Sign in with Google
+    </button>
+    <div class="login-error hidden" id="login-error"></div>
+  </div>
+</div>
+
+<script src="firebase-config.js"></script>
+<script type="module">
+  import { initFirebase, onAuth, signInGoogle } from "./js/auth.js";
+
+  initFirebase();
+
+  // Already signed in → go straight to app
+  onAuth(user => {
+    if (user) window.location.href = "app.html";
+  });
+
+  document.getElementById("btn-signin").addEventListener("click", async () => {
+    const errEl = document.getElementById("login-error");
+    errEl.classList.add("hidden");
+    try {
+      await signInGoogle();
+      // onAuth will redirect
+    } catch (e) {
+      errEl.textContent = e.message || "Sign-in failed. Please try again.";
+      errEl.classList.remove("hidden");
+    }
+  });
+</script>
+</body>
+</html>

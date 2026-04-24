@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hidden Graham</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<!-- Nav -->
+<nav id="app-nav">
+  <span class="logo">🏠 Hidden Graham</span>
+  <div class="nav-right">
+    <button class="btn btn-ghost btn-sm" id="btn-weekly">📋 This Week</button>
+    <button class="btn btn-primary btn-sm" id="btn-add">+ Add Item</button>
+    <a href="settings.html" class="btn btn-ghost btn-icon" id="btn-settings" title="Settings">⚙</a>
+    <div class="user-avatar" title=""></div>
+    <button class="btn btn-ghost btn-sm" id="btn-signout">Sign out</button>
+  </div>
+</nav>
+
+<!-- Main matrix -->
+<div class="matrix-wrap" id="app-root">
+  <div class="matrix-toolbar">
+    <div>
+      <h2>Priority Matrix</h2>
+      <div style="font-size:12px;color:var(--text-muted);margin-top:2px">Drag items between quadrants to reprioritise</div>
+    </div>
+    <div class="matrix-filters">
+      <span class="filter-chip active" data-filter="all">All</span>
+      <span class="filter-chip" data-filter="goal">Goals</span>
+      <span class="filter-chip" data-filter="project">Projects</span>
+      <span class="filter-chip" data-filter="decision">Decisions</span>
+      <span class="filter-chip" data-filter="wishlist">Wishlist</span>
+    </div>
+  </div>
+
+  <!-- Axis labels -->
+  <div style="padding-left:24px;padding-bottom:24px;position:relative">
+    <div style="display:flex;justify-content:space-between;margin-bottom:4px;font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px">
+      <span>← Not Urgent</span>
+      <span style="font-weight:700;color:var(--text)">URGENCY</span>
+      <span>Urgent →</span>
+    </div>
+    <div style="display:flex;gap:12px">
+      <div style="writing-mode:vertical-rl;transform:rotate(180deg);font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;display:flex;justify-content:space-between;padding:8px 0;min-height:460px">
+        <span>↓ Not Important</span>
+        <span style="font-weight:700;color:var(--text)">IMPORTANCE</span>
+        <span>↑ Important</span>
+      </div>
+      <div class="matrix-grid" id="matrix-grid" style="flex:1"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Weekly digest panel (hidden by default) -->
+<div class="digest-wrap hidden" id="digest-wrap">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+    <h2>This Week's Review</h2>
+    <button class="btn btn-ghost" id="btn-close-digest">✕ Close</button>
+  </div>
+  <div class="ai-panel">
+    <div class="ai-label">Claude's Weekly Digest</div>
+    <div class="digest-content ai-loading" id="digest-content">Generating your weekly review…</div>
+  </div>
+</div>
+
+<!-- Add / Edit modal -->
+<div class="modal-backdrop hidden" id="modal-backdrop">
+  <div class="modal">
+    <h3 id="modal-title">Add Item</h3>
+    <form id="item-form">
+      <div class="form-group">
+        <label for="f-title">Title *</label>
+        <input type="text" id="f-title" placeholder="What's the goal or decision?" required>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="f-type">Type</label>
+          <select id="f-type">
+            <option value="goal">🎯 Life Goal</option>
+            <option value="project">🛠 Project</option>
+            <option value="decision">🤔 Decision</option>
+            <option value="wishlist">✨ Wishlist</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="f-quadrant">Quadrant</label>
+          <select id="f-quadrant">
+            <option value="ui">🔴 Do First (Urgent + Important)</option>
+            <option value="ni">🟢 Schedule (Not Urgent + Important)</option>
+            <option value="un">🟡 Delegate (Urgent + Not Important)</option>
+            <option value="nn">⚫ Eliminate (Not Urgent + Not Important)</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="f-due">Due Date (optional)</label>
+        <input type="date" id="f-due">
+      </div>
+      <div class="form-group">
+        <label for="f-notes">Notes</label>
+        <textarea id="f-notes" placeholder="Any context, constraints, or ideas…"></textarea>
+      </div>
+
+      <!-- AI buttons -->
+      <div style="display:flex;gap:8px;margin-bottom:8px">
+        <button type="button" class="btn btn-secondary btn-sm" id="btn-suggest">✨ Suggest quadrant</button>
+        <button type="button" class="btn btn-secondary btn-sm" id="btn-action-plan">📋 Break it down</button>
+      </div>
+
+      <!-- AI output panels -->
+      <div class="ai-panel hidden" id="ai-suggest-panel">
+        <div class="ai-label">Claude's Suggestion</div>
+        <div id="ai-suggest-body"></div>
+      </div>
+      <div class="ai-panel hidden" id="ai-plan-panel">
+        <div class="ai-label">Action Plan</div>
+        <div id="ai-plan-body"></div>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" id="modal-cancel">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="hidden"></div>
+
+<script src="firebase-config.js"></script>
+<script type="module" src="js/app.js"></script>
+<script type="module">
+  // Wire weekly digest button
+  import { weeklyDigest } from "./js/claude.js";
+  import { getUserSettings } from "./js/db.js";
+  import { getAuth } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+
+  document.getElementById("btn-weekly").addEventListener("click", async () => {
+    const digestWrap = document.getElementById("digest-wrap");
+    const content    = document.getElementById("digest-content");
+    const matrixWrap = document.querySelector(".matrix-wrap");
+
+    matrixWrap.style.display = "none";
+    digestWrap.classList.remove("hidden");
+    content.textContent = "Generating your weekly review…";
+    content.classList.add("ai-loading");
+
+    const auth = getAuth();
+    const user = auth.currentUser;
+    if (!user) return;
+
+    const settings = await getUserSettings(user.uid);
+    if (!settings.claudeApiKey) {
+      content.textContent = "Add your Claude API key in Settings to use this feature.";
+      content.classList.remove("ai-loading");
+      return;
+    }
+
+    // Get items from the live subscription (exposed via window)
+    const items  = window._currentItems || [];
+    const result = await weeklyDigest(items, settings.claudeApiKey);
+    content.classList.remove("ai-loading");
+    content.textContent = result.error ? "Error: " + result.error : result.text;
+  });
+
+  document.getElementById("btn-close-digest").addEventListener("click", () => {
+    document.getElementById("digest-wrap").classList.add("hidden");
+    document.querySelector(".matrix-wrap").style.display = "";
+  });
+</script>
+</body>
+</html>
