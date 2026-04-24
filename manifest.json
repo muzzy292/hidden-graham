@@ -1,0 +1,14 @@
+{
+  "name": "Our Compass",
+  "short_name": "Our Compass",
+  "description": "Your shared space to prioritise what matters",
+  "start_url": "/hidden-graham/dashboard.html",
+  "scope": "/hidden-graham/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0f1117",
+  "theme_color": "#6c63ff",
+  "icons": [
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
