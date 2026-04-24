@@ -143,7 +143,7 @@
       </div>
       <div class="form-group">
         <label>Location (optional)</label>
-        <input type="text" id="f-location" placeholder="e.g. Bali, Indonesia or 123 Main St">
+        <input type="text" id="f-location" placeholder="Search for a place…" autocomplete="off">
       </div>
       <div class="form-group">
         <label>Notes (optional)</label>
@@ -172,6 +172,29 @@
 <div id="toast" class="hidden"></div>
 
 <script src="firebase-config.js"></script>
+<script>
+  function _initPlacesAutocomplete() {
+    const input = document.getElementById("f-location");
+    if (!window.google?.maps?.places || input._acBound) return;
+    input._acBound = true;
+    const ac = new google.maps.places.Autocomplete(input, { fields: ["formatted_address", "name", "geometry"] });
+    ac.addListener("place_changed", () => {
+      const place = ac.getPlace();
+      input.value = place.formatted_address || place.name || input.value;
+    });
+  }
+
+  function _loadMapsApi() {
+    if (window.google?.maps?.places) { _initPlacesAutocomplete(); return; }
+    if (document.querySelector('script[data-maps]')) return;
+    const s = document.createElement("script");
+    s.dataset.maps = "1";
+    s.src = `https://maps.googleapis.com/maps/api/js?key=${GAPI_CONFIG.apiKey}&libraries=places&callback=_mapsReady`;
+    s.async = true;
+    document.head.appendChild(s);
+  }
+  window._mapsReady = _initPlacesAutocomplete;
+</script>
 <script type="module">
   import { initFirebase, onAuth, signOutUser } from "./js/auth.js";
   import { subscribeEvents, addEvent, updateEvent, deleteEvent, subscribeBudgets } from "./js/db.js";
@@ -309,6 +332,7 @@
   document.getElementById("f-recurring").addEventListener("change", _updateFormFields);
 
   function _openModal(ev) {
+    _loadMapsApi();
     _editId = ev?.id || null;
     document.getElementById("modal-title").textContent = ev ? "Edit Event" : "Add Event";
     document.getElementById("f-title").value      = ev?.title      || "";
