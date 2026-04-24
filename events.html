@@ -113,21 +113,32 @@
       </div>
       <div class="form-row">
         <div class="form-group">
-          <label>Time (optional)</label>
-          <input type="time" id="f-time">
-        </div>
-        <div class="form-group">
           <label>Repeats</label>
           <select id="f-recurring">
             <option value="none">Does not repeat</option>
             <option value="yearly">🔁 Every year</option>
           </select>
         </div>
-      </div>
-      <div class="form-row" id="end-date-row">
         <div class="form-group">
           <label>End Date (optional)</label>
           <input type="date" id="f-end-date">
+        </div>
+      </div>
+      <div class="form-row" id="time-row">
+        <div class="form-group">
+          <label>Time (optional)</label>
+          <input type="time" id="f-time">
+        </div>
+        <div class="form-group" id="duration-group">
+          <label>Duration</label>
+          <select id="f-duration">
+            <option value="0">All day</option>
+            <option value="30">30 minutes</option>
+            <option value="60" selected>1 hour</option>
+            <option value="120">2 hours</option>
+            <option value="180">3 hours</option>
+            <option value="240">4 hours</option>
+          </select>
         </div>
       </div>
       <div class="form-group">
@@ -286,19 +297,32 @@
     sel.value = cur;
   }
 
+  // Show/hide time+duration row: hidden for birthday + yearly recurring (all-day)
+  function _updateFormFields() {
+    const type      = document.getElementById("f-type").value;
+    const recurring = document.getElementById("f-recurring").value;
+    const allDay    = type === "birthday" && recurring === "yearly";
+    document.getElementById("time-row").style.display = allDay ? "none" : "";
+  }
+
+  document.getElementById("f-type").addEventListener("change", _updateFormFields);
+  document.getElementById("f-recurring").addEventListener("change", _updateFormFields);
+
   function _openModal(ev) {
     _editId = ev?.id || null;
     document.getElementById("modal-title").textContent = ev ? "Edit Event" : "Add Event";
-    document.getElementById("f-title").value    = ev?.title    || "";
-    document.getElementById("f-type").value     = ev?.type     || "holiday";
-    document.getElementById("f-date").value     = ev?.date     || "";
-    document.getElementById("f-time").value     = ev?.time     || "";
-    document.getElementById("f-recurring").value = ev?.recurring || "none";
-    document.getElementById("f-end-date").value  = ev?.endDate  || "";
-    document.getElementById("f-location").value  = ev?.location || "";
-    document.getElementById("f-notes").value     = ev?.notes    || "";
-    document.getElementById("f-budget").value    = ev?.budgetId || "";
+    document.getElementById("f-title").value      = ev?.title      || "";
+    document.getElementById("f-type").value       = ev?.type       || "holiday";
+    document.getElementById("f-date").value       = ev?.date       || "";
+    document.getElementById("f-time").value       = ev?.time       || "";
+    document.getElementById("f-duration").value   = ev?.duration   ?? "60";
+    document.getElementById("f-recurring").value  = ev?.recurring  || "none";
+    document.getElementById("f-end-date").value   = ev?.endDate    || "";
+    document.getElementById("f-location").value   = ev?.location   || "";
+    document.getElementById("f-notes").value      = ev?.notes      || "";
+    document.getElementById("f-budget").value     = ev?.budgetId   || "";
     document.getElementById("f-push-cal").checked = true;
+    _updateFormFields();
     document.getElementById("modal-backdrop").classList.remove("hidden");
     document.getElementById("f-title").focus();
   }
@@ -310,16 +334,21 @@
 
   async function _handleSave(e) {
     e.preventDefault();
+    const type      = document.getElementById("f-type").value;
+    const recurring = document.getElementById("f-recurring").value;
+    const allDay    = type === "birthday" && recurring === "yearly";
+
     const payload = {
       title:     document.getElementById("f-title").value.trim(),
-      type:      document.getElementById("f-type").value,
+      type,
       date:      document.getElementById("f-date").value,
-      time:      document.getElementById("f-time").value || null,
-      recurring: document.getElementById("f-recurring").value,
+      time:      allDay ? null : (document.getElementById("f-time").value || null),
+      duration:  allDay ? 0   : parseInt(document.getElementById("f-duration").value),
+      recurring,
       endDate:   document.getElementById("f-end-date").value || null,
-      location: document.getElementById("f-location").value.trim() || null,
-      notes:    document.getElementById("f-notes").value.trim() || null,
-      budgetId: document.getElementById("f-budget").value || null,
+      location:  document.getElementById("f-location").value.trim() || null,
+      notes:     document.getElementById("f-notes").value.trim() || null,
+      budgetId:  document.getElementById("f-budget").value || null,
     };
     const pushCal = document.getElementById("f-push-cal").checked;
 
@@ -334,17 +363,37 @@
 
   async function _pushEvent(ev) {
     try {
-      await pushToCalendar({
-        title:   ev.title,
-        notes:   [ev.notes, ev.location ? `📍 ${ev.location}` : ""].filter(Boolean).join("\n"),
-        dueDate: ev.date,
-        time:    ev.time,
-        endDate: ev.endDate,
-        quadrant: ev.type
+      const tz    = "Australia/Sydney";
+      const allDay = !ev.time || ev.duration === 0;
+      let start, end;
+
+      if (allDay) {
+        const d = ev._display || new Date(ev.date);
+        const ds = d.toISOString().slice(0, 10);
+        start = { date: ds };
+        end   = { date: ds };
+      } else {
+        const d   = ev._display || new Date(ev.date);
+        const ds  = d.toISOString().slice(0, 10);
+        const startDt = new Date(`${ds}T${ev.time}:00`);
+        const endDt   = new Date(startDt.getTime() + (ev.duration || 60) * 60000);
+        start = { dateTime: startDt.toISOString(), timeZone: tz };
+        end   = { dateTime: endDt.toISOString(),   timeZone: tz };
+      }
+
+      const { gapi } = window;
+      await gapi.client.calendar.events.insert({
+        calendarId: "primary",
+        resource: {
+          summary:     ev.title,
+          description: [ev.notes, ev.location ? `📍 ${ev.location}` : ""].filter(Boolean).join("\n"),
+          location:    ev.location || undefined,
+          start, end
+        }
       });
       _showToast(`"${ev.title}" added to Google Calendar`, "success");
     } catch(err) {
-      _showToast("Calendar error: " + err.message, "error");
+      _showToast("Calendar error: " + (err.message || JSON.stringify(err)), "error");
     }
   }
 
