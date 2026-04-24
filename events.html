@@ -183,29 +183,6 @@
 <div id="toast" class="hidden"></div>
 
 <script src="firebase-config.js"></script>
-<script>
-  function _initPlacesAutocomplete() {
-    const input = document.getElementById("f-location");
-    if (!window.google?.maps?.places || input._acBound) return;
-    input._acBound = true;
-    const ac = new google.maps.places.Autocomplete(input, { fields: ["formatted_address", "name", "geometry"] });
-    ac.addListener("place_changed", () => {
-      const place = ac.getPlace();
-      input.value = place.formatted_address || place.name || input.value;
-    });
-  }
-
-  function _loadMapsApi() {
-    if (window.google?.maps?.places) { _initPlacesAutocomplete(); return; }
-    if (document.querySelector('script[data-maps]')) return;
-    const s = document.createElement("script");
-    s.dataset.maps = "1";
-    s.src = `https://maps.googleapis.com/maps/api/js?key=${GAPI_CONFIG.apiKey}&libraries=places&callback=_mapsReady`;
-    s.async = true;
-    document.head.appendChild(s);
-  }
-  window._mapsReady = _initPlacesAutocomplete;
-</script>
 <script type="module">
   import { initFirebase, onAuth, signOutUser, getAllowedEmails } from "./js/auth.js";
   import { subscribeEvents, addEvent, updateEvent, deleteEvent, subscribeBudgets } from "./js/db.js";
@@ -213,10 +190,31 @@
 
   initFirebase();
 
-  let _events    = [];
-  let _budgets   = [];
-  let _editId    = null;
-  let _allEmails = [];
+  let _events  = [];
+  let _budgets = [];
+  let _editId  = null;
+
+  // Load Google Places autocomplete into the location input
+  function _initPlaces() {
+    const input = document.getElementById("f-location");
+    if (input._acBound) return;
+    if (window.google?.maps?.places) {
+      input._acBound = true;
+      const ac = new google.maps.places.Autocomplete(input, { fields: ["formatted_address", "name"] });
+      ac.addListener("place_changed", () => {
+        const p = ac.getPlace();
+        input.value = p.formatted_address || p.name || input.value;
+      });
+      return;
+    }
+    if (document.querySelector("script[data-maps]")) return;
+    const s = document.createElement("script");
+    s.dataset.maps = "1";
+    s.async = true;
+    s.src = `https://maps.googleapis.com/maps/api/js?key=${GAPI_CONFIG.apiKey}&libraries=places`;
+    s.onload = () => _initPlaces();
+    document.head.appendChild(s);
+  }
 
   onAuth(async user => {
     if (!user) { window.location.href = "index.html"; return; }
@@ -224,7 +222,6 @@
       (user.displayName || user.email).split(" ").slice(0,2).map(w=>w[0].toUpperCase()).join("");
 
     await initCalendar().catch(() => {});
-    _allEmails = await getAllowedEmails();
 
     subscribeEvents(events => { _events = events; _render(); });
     subscribeBudgets(budgets => { _budgets = budgets; _populateBudgetSelect(); });
@@ -344,8 +341,9 @@
   document.getElementById("f-type").addEventListener("change", _updateFormFields);
   document.getElementById("f-recurring").addEventListener("change", _updateFormFields);
 
-  function _openModal(ev) {
-    _loadMapsApi();
+  async function _openModal(ev) {
+    _initPlaces();
+    const allEmails = await getAllowedEmails();
     _editId = ev?.id || null;
     document.getElementById("modal-title").textContent = ev ? "Edit Event" : "Add Event";
     document.getElementById("f-title").value      = ev?.title      || "";
@@ -360,7 +358,7 @@
     document.getElementById("f-budget").value     = ev?.budgetId   || "";
     document.getElementById("f-push-cal").checked = true;
     const saved = ev?.attendees || [];
-    document.getElementById("f-attendees").innerHTML = _allEmails.map(email => `
+    document.getElementById("f-attendees").innerHTML = allEmails.map(email => `
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:var(--text)">
         <input type="checkbox" value="${email}" ${saved.includes(email) ? "checked" : ""}>
         ${email}
