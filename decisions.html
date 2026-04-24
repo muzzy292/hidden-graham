@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Decisions — Our Compass</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    .decisions-wrap { padding: 24px; max-width: 800px; margin: 0 auto; }
+    .decisions-toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+    .decisions-sub { font-size: 13px; color: var(--text-muted); margin-bottom: 24px; }
+
+    .decision-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 20px; margin-bottom: 12px;
+    }
+    .decision-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+    .decision-title { font-size: 16px; font-weight: 700; }
+    .decision-meta  { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+
+    .decision-section { margin-top: 10px; }
+    .decision-section-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); margin-bottom: 4px; }
+    .decision-section-body  { font-size: 13px; line-height: 1.6; color: var(--text); }
+
+    .status-badge { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; padding: 2px 8px; border-radius: 4px; }
+    .status-standing  { background: rgba(105,219,124,0.2); color: var(--success); }
+    .status-revisited { background: rgba(255,169,77,0.2);  color: var(--warn); }
+    .status-reversed  { background: rgba(255,107,107,0.2); color: var(--danger); }
+
+    .cat-badge { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; padding: 2px 8px; border-radius: 4px; }
+    .cat-finance  { background: rgba(105,219,124,0.2); color: var(--success); }
+    .cat-home     { background: rgba(255,169,77,0.2);  color: var(--warn); }
+    .cat-family   { background: rgba(108,99,255,0.2);  color: var(--accent); }
+    .cat-career   { background: rgba(78,205,196,0.2);  color: var(--accent2); }
+    .cat-lifestyle{ background: rgba(255,107,107,0.2); color: var(--danger); }
+    .cat-other    { background: rgba(123,130,160,0.2); color: var(--text-muted); }
+
+    .decision-date { font-size: 12px; color: var(--text-muted); }
+    .decision-by   { font-size: 12px; color: var(--text-muted); }
+    .decision-actions { display: flex; gap: 4px; flex-shrink: 0; }
+
+    .search-bar { width: 100%; margin-bottom: 16px; }
+    .empty-state { text-align: center; padding: 60px 20px; color: var(--text-muted); }
+    .filter-row  { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+  </style>
+</head>
+<body>
+
+<nav>
+  <span class="logo">🧭 Our Compass</span>
+  <div class="nav-right">
+    <a href="dashboard.html" class="btn btn-ghost btn-sm">Home</a>
+    <a href="app.html"       class="btn btn-ghost btn-sm">Goals</a>
+    <a href="events.html"    class="btn btn-ghost btn-sm">Events</a>
+    <a href="budget.html"    class="btn btn-ghost btn-sm">Budget</a>
+    <a href="decisions.html" class="btn btn-ghost btn-sm" style="color:var(--accent)">Decisions</a>
+    <a href="settings.html"  class="btn btn-ghost btn-icon" title="Settings">⚙</a>
+    <div class="user-avatar" id="user-avatar"></div>
+    <button class="btn btn-ghost btn-sm" id="btn-signout">Sign out</button>
+  </div>
+</nav>
+
+<div class="decisions-wrap">
+  <div class="decisions-toolbar">
+    <div>
+      <h2 style="font-size:1.2rem;font-weight:700">Decision Log</h2>
+    </div>
+    <button class="btn btn-primary" id="btn-add-decision">+ Record Decision</button>
+  </div>
+  <p class="decisions-sub">
+    Record decisions you've made together — so you never relitigate the same conversation twice.
+  </p>
+
+  <input type="text" class="search-bar" id="search" placeholder="Search decisions…">
+
+  <div class="filter-row" id="filter-row">
+    <span class="filter-chip active" data-filter="all">All</span>
+    <span class="filter-chip" data-filter="standing">Standing</span>
+    <span class="filter-chip" data-filter="revisited">Revisited</span>
+    <span class="filter-chip" data-filter="reversed">Reversed</span>
+  </div>
+
+  <div id="decisions-list"><div class="empty-state">Loading…</div></div>
+</div>
+
+<!-- Add / Edit modal -->
+<div class="modal-backdrop hidden" id="modal-backdrop">
+  <div class="modal">
+    <h3 id="modal-title">Record a Decision</h3>
+    <form id="decision-form">
+      <div class="form-group">
+        <label>What was the question or topic? *</label>
+        <input type="text" id="f-title" placeholder="e.g. Should we renovate the kitchen?" required>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Category</label>
+          <select id="f-cat">
+            <option value="finance">💰 Finance</option>
+            <option value="home">🏠 Home</option>
+            <option value="family">👨‍👩‍👧 Family</option>
+            <option value="career">💼 Career</option>
+            <option value="lifestyle">🌿 Lifestyle</option>
+            <option value="other">📌 Other</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Status</label>
+          <select id="f-status">
+            <option value="standing">✅ Standing</option>
+            <option value="revisited">🔄 Revisited</option>
+            <option value="reversed">❌ Reversed</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>What did you decide? *</label>
+        <textarea id="f-decision" placeholder="We decided to…" required></textarea>
+      </div>
+      <div class="form-group">
+        <label>Why? (reasoning)</label>
+        <textarea id="f-reason" placeholder="Because… / The key factors were…"></textarea>
+      </div>
+      <div class="form-group">
+        <label>Any conditions or review date?</label>
+        <input type="text" id="f-conditions" placeholder="e.g. Review in 12 months, only if budget allows">
+      </div>
+      <div class="form-group">
+        <label>Date decided</label>
+        <input type="date" id="f-date">
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" id="modal-cancel">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save Decision</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="toast" class="hidden"></div>
+
+<script src="firebase-config.js"></script>
+<script type="module">
+  import { initFirebase, onAuth, signOutUser } from "./js/auth.js";
+  import { notify } from "./js/notifications.js";
+  import {
+    collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy
+  } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+  import { db } from "./js/auth.js";
+
+  initFirebase();
+
+  const DECISIONS = () => collection(db, "household", "shared", "decisions");
+
+  let _decisions = [];
+  let _filter    = "all";
+  let _search    = "";
+  let _editId    = null;
+  let _user      = null;
+
+  onAuth(user => {
+    if (!user) { window.location.href = "index.html"; return; }
+    _user = user;
+    document.getElementById("user-avatar").textContent =
+      (user.displayName||user.email).split(" ").slice(0,2).map(w=>w[0].toUpperCase()).join("");
+
+    const q = query(DECISIONS(), orderBy("decidedAt", "desc"));
+    onSnapshot(q, snap => {
+      _decisions = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      _render();
+    });
+  });
+
+  document.getElementById("btn-signout").addEventListener("click", signOutUser);
+  document.getElementById("btn-add-decision").addEventListener("click", () => _openModal(null));
+  document.getElementById("modal-cancel").addEventListener("click", _closeModal);
+  document.getElementById("modal-backdrop").addEventListener("click", e => {
+    if (e.target === e.currentTarget) _closeModal();
+  });
+  document.getElementById("decision-form").addEventListener("submit", _handleSave);
+
+  document.getElementById("search").addEventListener("input", e => {
+    _search = e.target.value.toLowerCase();
+    _render();
+  });
+
+  document.querySelectorAll(".filter-chip").forEach(chip => {
+    chip.addEventListener("click", () => {
+      document.querySelectorAll(".filter-chip").forEach(c => c.classList.remove("active"));
+      chip.classList.add("active");
+      _filter = chip.dataset.filter;
+      _render();
+    });
+  });
+
+  function _render() {
+    const list = document.getElementById("decisions-list");
+    let filtered = _decisions.filter(d => {
+      const matchFilter = _filter === "all" || d.status === _filter;
+      const matchSearch = !_search ||
+        d.title?.toLowerCase().includes(_search) ||
+        d.decision?.toLowerCase().includes(_search) ||
+        d.reason?.toLowerCase().includes(_search);
+      return matchFilter && matchSearch;
+    });
+
+    if (!filtered.length) {
+      list.innerHTML = `<div class="empty-state">${_decisions.length ? "No decisions match your filter." : "No decisions recorded yet.<br>Click \"+ Record Decision\" to start."}</div>`;
+      return;
+    }
+
+    list.innerHTML = filtered.map(d => `
+      <div class="decision-card">
+        <div class="decision-card-top">
+          <div class="decision-title">${_esc(d.title)}</div>
+          <div class="decision-actions">
+            <button class="btn btn-ghost btn-icon btn-edit-d" data-id="${d.id}" title="Edit">✎</button>
+            <button class="btn btn-ghost btn-icon btn-del-d"  data-id="${d.id}" title="Delete">✕</button>
+          </div>
+        </div>
+        <div class="decision-meta">
+          <span class="status-badge status-${d.status||"standing"}">${d.status||"standing"}</span>
+          <span class="cat-badge cat-${d.category||"other"}">${d.category||"other"}</span>
+          ${d.decidedAt ? `<span class="decision-date">📅 ${d.decidedAt}</span>` : ""}
+          ${d.createdByName ? `<span class="decision-by">by ${_esc(d.createdByName)}</span>` : ""}
+        </div>
+        <div class="decision-section">
+          <div class="decision-section-label">Decision</div>
+          <div class="decision-section-body">${_esc(d.decision)}</div>
+        </div>
+        ${d.reason ? `
+        <div class="decision-section">
+          <div class="decision-section-label">Why</div>
+          <div class="decision-section-body">${_esc(d.reason)}</div>
+        </div>` : ""}
+        ${d.conditions ? `
+        <div class="decision-section">
+          <div class="decision-section-label">Conditions / Review</div>
+          <div class="decision-section-body">${_esc(d.conditions)}</div>
+        </div>` : ""}
+      </div>`).join("");
+
+    list.querySelectorAll(".btn-edit-d").forEach(btn => {
+      btn.addEventListener("click", () => _openModal(_decisions.find(d => d.id === btn.dataset.id)));
+    });
+    list.querySelectorAll(".btn-del-d").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const d = _decisions.find(d => d.id === btn.dataset.id);
+        if (confirm(`Delete decision "${d.title}"?`)) await deleteDoc(doc(db, "household", "shared", "decisions", d.id));
+      });
+    });
+  }
+
+  function _openModal(d) {
+    _editId = d?.id || null;
+    document.getElementById("modal-title").textContent = d ? "Edit Decision" : "Record a Decision";
+    document.getElementById("f-title").value      = d?.title      || "";
+    document.getElementById("f-cat").value        = d?.category   || "other";
+    document.getElementById("f-status").value     = d?.status     || "standing";
+    document.getElementById("f-decision").value   = d?.decision   || "";
+    document.getElementById("f-reason").value     = d?.reason     || "";
+    document.getElementById("f-conditions").value = d?.conditions || "";
+    document.getElementById("f-date").value       = d?.decidedAt  || new Date().toISOString().slice(0,10);
+    document.getElementById("modal-backdrop").classList.remove("hidden");
+    document.getElementById("f-title").focus();
+  }
+
+  function _closeModal() {
+    document.getElementById("modal-backdrop").classList.add("hidden");
+    _editId = null;
+  }
+
+  async function _handleSave(e) {
+    e.preventDefault();
+    const payload = {
+      title:      document.getElementById("f-title").value.trim(),
+      category:   document.getElementById("f-cat").value,
+      status:     document.getElementById("f-status").value,
+      decision:   document.getElementById("f-decision").value.trim(),
+      reason:     document.getElementById("f-reason").value.trim() || null,
+      conditions: document.getElementById("f-conditions").value.trim() || null,
+      decidedAt:  document.getElementById("f-date").value || null,
+    };
+    if (_editId) {
+      await updateDoc(doc(db, "household", "shared", "decisions", _editId), payload);
+    } else {
+      payload.createdByName = _user.displayName || _user.email;
+      payload.createdAt     = new Date().toISOString();
+      await addDoc(DECISIONS(), payload);
+      await notify(`${payload.createdByName} recorded a decision: "${payload.title}"`, payload.createdByName);
+    }
+    _closeModal();
+  }
+
+  function _esc(s) { return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+</script>
+</body>
+</html>

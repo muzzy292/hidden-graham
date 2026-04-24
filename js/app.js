@@ -11,7 +11,7 @@ async function boot() {
 
   onAuth(async user => {
     if (!user) {
-      window.location.href = "index.html";
+      window.location.href = "dashboard.html";
       return;
     }
 

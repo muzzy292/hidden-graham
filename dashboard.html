@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Our Compass</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    .dash-wrap { padding: 24px; max-width: 1000px; margin: 0 auto; }
+    .dash-greeting { margin-bottom: 28px; }
+    .dash-greeting h2 { font-size: 1.6rem; font-weight: 700; }
+    .dash-greeting p  { color: var(--text-muted); margin-top: 4px; }
+
+    .dash-stats {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 28px;
+    }
+    .stat-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 16px 18px;
+      cursor: pointer; transition: border-color 0.15s;
+      text-decoration: none; color: inherit; display: block;
+    }
+    .stat-card:hover { border-color: var(--accent); }
+    .stat-card .stat-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); margin-bottom: 6px; }
+    .stat-card .stat-value { font-size: 1.8rem; font-weight: 700; }
+    .stat-card .stat-sub   { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+    .dash-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+    }
+    .dash-panel {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 18px;
+    }
+    .dash-panel-header {
+      display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;
+    }
+    .dash-panel-header h3 { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); }
+    .dash-panel-header a  { font-size: 12px; color: var(--accent); text-decoration: none; }
+    .dash-panel-header a:hover { text-decoration: underline; }
+
+    .dash-item { padding: 8px 0; border-bottom: 1px solid var(--border); }
+    .dash-item:last-child { border-bottom: none; padding-bottom: 0; }
+    .dash-item-title { font-size: 14px; font-weight: 500; }
+    .dash-item-sub   { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+    .notif-item { padding: 10px 0; border-bottom: 1px solid var(--border); display: flex; gap: 10px; }
+    .notif-item:last-child { border-bottom: none; }
+    .notif-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); margin-top: 5px; flex-shrink: 0; }
+    .notif-dot.read { background: var(--border); }
+    .notif-body { font-size: 13px; line-height: 1.4; }
+    .notif-time { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+    .budget-mini { margin-bottom: 10px; }
+    .budget-mini:last-child { margin-bottom: 0; }
+    .budget-mini-top { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 4px; }
+    .progress-bar { height: 6px; background: var(--surface2); border-radius: 3px; overflow: hidden; }
+    .progress-fill { height: 100%; border-radius: 3px; }
+
+    .empty-dash { color: var(--text-muted); font-size: 13px; padding: 12px 0; }
+
+    @media (max-width: 700px) {
+      .dash-stats { grid-template-columns: 1fr 1fr; }
+      .dash-grid  { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<nav id="app-nav">
+  <span class="logo">🧭 Our Compass</span>
+  <div class="nav-right">
+    <a href="dashboard.html" class="btn btn-ghost btn-sm" style="color:var(--accent)">Home</a>
+    <a href="app.html"       class="btn btn-ghost btn-sm">Goals</a>
+    <a href="events.html"    class="btn btn-ghost btn-sm">Events</a>
+    <a href="budget.html"    class="btn btn-ghost btn-sm">Budget</a>
+    <a href="decisions.html" class="btn btn-ghost btn-sm">Decisions</a>
+    <a href="settings.html"  class="btn btn-ghost btn-icon" title="Settings">⚙</a>
+    <div class="user-avatar" id="user-avatar"></div>
+    <button class="btn btn-ghost btn-sm" id="btn-signout">Sign out</button>
+  </div>
+</nav>
+
+<div class="dash-wrap">
+  <div class="dash-greeting">
+    <h2 id="greeting">Good morning 👋</h2>
+    <p id="greeting-sub">Here's what's on your plate.</p>
+  </div>
+
+  <!-- Stats row -->
+  <div class="dash-stats">
+    <a class="stat-card" href="app.html">
+      <div class="stat-label">This Month</div>
+      <div class="stat-value" id="stat-thismonth">—</div>
+      <div class="stat-sub">priority items</div>
+    </a>
+    <a class="stat-card" href="events.html">
+      <div class="stat-label">Upcoming Events</div>
+      <div class="stat-value" id="stat-events">—</div>
+      <div class="stat-sub">in next 30 days</div>
+    </a>
+    <a class="stat-card" href="budget.html">
+      <div class="stat-label">Total Budgeted</div>
+      <div class="stat-value" id="stat-budget">—</div>
+      <div class="stat-sub" id="stat-budget-sub">across all budgets</div>
+    </a>
+    <a class="stat-card" href="decisions.html">
+      <div class="stat-label">Decisions Made</div>
+      <div class="stat-value" id="stat-decisions">—</div>
+      <div class="stat-sub">recorded together</div>
+    </a>
+  </div>
+
+  <!-- Main panels -->
+  <div class="dash-grid">
+    <!-- This Month priorities -->
+    <div class="dash-panel">
+      <div class="dash-panel-header">
+        <h3>🔴 This Month</h3>
+        <a href="app.html">See all →</a>
+      </div>
+      <div id="panel-thismonth"><div class="empty-dash">Loading…</div></div>
+    </div>
+
+    <!-- Upcoming events -->
+    <div class="dash-panel">
+      <div class="dash-panel-header">
+        <h3>📅 Coming Up</h3>
+        <a href="events.html">See all →</a>
+      </div>
+      <div id="panel-events"><div class="empty-dash">Loading…</div></div>
+    </div>
+
+    <!-- Budget snapshot -->
+    <div class="dash-panel">
+      <div class="dash-panel-header">
+        <h3>💰 Budget Snapshot</h3>
+        <a href="budget.html">See all →</a>
+      </div>
+      <div id="panel-budgets"><div class="empty-dash">Loading…</div></div>
+    </div>
+
+    <!-- Activity feed -->
+    <div class="dash-panel">
+      <div class="dash-panel-header">
+        <h3>🔔 Recent Activity</h3>
+        <button class="btn btn-ghost btn-sm" id="btn-mark-read" style="font-size:11px">Mark all read</button>
+      </div>
+      <div id="panel-notifs"><div class="empty-dash">Loading…</div></div>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="hidden"></div>
+
+<script src="firebase-config.js"></script>
+<script type="module">
+  import { initFirebase, onAuth, signOutUser } from "./js/auth.js";
+  import { subscribeItems, subscribeEvents, subscribeBudgets } from "./js/db.js";
+  import { subscribeNotifications, markAllRead } from "./js/notifications.js";
+
+  initFirebase();
+
+  onAuth(user => {
+    if (!user) { window.location.href = "index.html"; return; }
+
+    const name = (user.displayName || "").split(" ")[0] || "there";
+    const hour = new Date().getHours();
+    const greet = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+    document.getElementById("greeting").textContent     = `${greet}, ${name} 👋`;
+    document.getElementById("greeting-sub").textContent = `Here's what's on your plate today.`;
+    document.getElementById("user-avatar").textContent  =
+      (user.displayName || user.email).split(" ").slice(0,2).map(w=>w[0].toUpperCase()).join("");
+
+    subscribeItems(items => {
+      const thisMonth = items.filter(i => i.quadrant === "ui" && !i.done);
+      document.getElementById("stat-thismonth").textContent = thisMonth.length;
+
+      const panel = document.getElementById("panel-thismonth");
+      if (!thisMonth.length) {
+        panel.innerHTML = `<div class="empty-dash">Nothing urgent this month 🎉</div>`;
+        return;
+      }
+      panel.innerHTML = thisMonth.slice(0, 5).map(it => `
+        <div class="dash-item">
+          <div class="dash-item-title">${_esc(it.title)}</div>
+          <div class="dash-item-sub">
+            <span class="item-type type-${it.type}" style="font-size:10px;padding:1px 5px">${it.type}</span>
+            ${it.dueDate ? ` · due ${it.dueDate}` : ""}
+          </div>
+        </div>`).join("");
+    });
+
+    subscribeEvents(events => {
+      const now  = new Date(); now.setHours(0,0,0,0);
+      const soon = events.filter(e => {
+        const d = new Date(e.date);
+        return d >= now && d <= new Date(now.getTime() + 30*86400000);
+      });
+      document.getElementById("stat-events").textContent = soon.length;
+
+      const panel = document.getElementById("panel-events");
+      if (!soon.length) {
+        panel.innerHTML = `<div class="empty-dash">No events in the next 30 days.</div>`;
+        return;
+      }
+      panel.innerHTML = soon.slice(0, 5).map(ev => {
+        const d = new Date(ev.date);
+        return `
+          <div class="dash-item">
+            <div class="dash-item-title">${_esc(ev.title)}</div>
+            <div class="dash-item-sub">
+              ${d.toLocaleDateString("en-AU", { weekday:"short", day:"numeric", month:"short" })}
+              ${ev.time ? ` · ${ev.time}` : ""}
+              ${ev.location ? ` · 📍 ${_esc(ev.location)}` : ""}
+            </div>
+          </div>`;
+      }).join("");
+    });
+
+    subscribeBudgets(budgets => {
+      const total   = budgets.reduce((s,b) => s + (b.target||0), 0);
+      const spent   = budgets.reduce((s,b) => s + (b.spent||0),  0);
+      document.getElementById("stat-budget").textContent    = _fmt(total);
+      document.getElementById("stat-budget-sub").textContent = `$${_fmt(spent).slice(1)} spent so far`;
+
+      const panel = document.getElementById("panel-budgets");
+      if (!budgets.length) {
+        panel.innerHTML = `<div class="empty-dash">No budgets set up yet.</div>`;
+        return;
+      }
+      const sorted = [...budgets].sort((a,b) => (b.target||0)-(a.target||0)).slice(0,4);
+      panel.innerHTML = sorted.map(b => {
+        const pct   = b.target ? Math.min(100, Math.round((b.spent||0)/b.target*100)) : 0;
+        const color = pct > 100 ? "var(--danger)" : pct > 75 ? "var(--warn)" : "var(--success)";
+        return `
+          <div class="budget-mini">
+            <div class="budget-mini-top">
+              <span>${_esc(b.name)}</span>
+              <span style="color:var(--text-muted)">${_fmt(b.spent||0)} / ${_fmt(b.target||0)}</span>
+            </div>
+            <div class="progress-bar">
+              <div class="progress-fill" style="width:${pct}%;background:${color}"></div>
+            </div>
+          </div>`;
+      }).join("");
+    });
+
+    subscribeNotifications(user.uid, (notifs, decisions) => {
+      document.getElementById("stat-decisions").textContent = decisions;
+
+      const panel = document.getElementById("panel-notifs");
+      if (!notifs.length) {
+        panel.innerHTML = `<div class="empty-dash">No activity yet.</div>`;
+        return;
+      }
+      panel.innerHTML = notifs.slice(0, 8).map(n => `
+        <div class="notif-item">
+          <div class="notif-dot${n.readBy?.includes(user.uid) ? " read" : ""}"></div>
+          <div>
+            <div class="notif-body">${_esc(n.message)}</div>
+            <div class="notif-time">${_timeAgo(n.createdAt)}</div>
+          </div>
+        </div>`).join("");
+    });
+
+    document.getElementById("btn-mark-read").addEventListener("click", () => markAllRead(user.uid));
+    document.getElementById("btn-signout").addEventListener("click", signOutUser);
+  });
+
+  function _fmt(n) { return "$" + Number(n).toLocaleString("en-AU"); }
+  function _esc(s) { return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+  function _timeAgo(iso) {
+    if (!iso) return "";
+    const diff = Math.round((Date.now() - new Date(iso)) / 60000);
+    if (diff < 1)  return "just now";
+    if (diff < 60) return `${diff}m ago`;
+    if (diff < 1440) return `${Math.round(diff/60)}h ago`;
+    return `${Math.round(diff/1440)}d ago`;
+  }
+</script>
+</body>
+</html>
