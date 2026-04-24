@@ -31,10 +31,10 @@ Item title: "${title}"
 Notes: "${notes || "none"}"
 
 Classify this item into exactly one quadrant:
-- ui = Urgent + Important (do first)
-- ni = Not Urgent + Important (schedule)
-- un = Urgent + Not Important (delegate or quick-do)
-- nn = Not Urgent + Not Important (eliminate or wishlist)
+- ui = This Month (top priority, do it soon)
+- ni = This Year (important but not urgent)
+- un = One Day (worth doing, lower priority)
+- nn = Maybe Never (nice idea, park it for now)
 
 Reply with JSON only, no other text:
 {"quadrant":"<key>","reason":"<one sentence explaining the classification>"}`;

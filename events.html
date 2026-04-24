@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Events — Our Compass</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    .events-wrap { padding: 24px; max-width: 800px; margin: 0 auto; }
+    .events-toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+    .event-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px 20px;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+    }
+    .event-date-box {
+      background: var(--accent);
+      border-radius: var(--radius-sm);
+      padding: 8px 12px;
+      text-align: center;
+      min-width: 52px;
+      flex-shrink: 0;
+    }
+    .event-date-box .day { font-size: 1.4rem; font-weight: 700; line-height: 1; color: #fff; }
+    .event-date-box .month { font-size: 11px; text-transform: uppercase; color: rgba(255,255,255,0.8); letter-spacing: 0.5px; }
+    .event-body { flex: 1; }
+    .event-title { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+    .event-meta { display: flex; flex-wrap: wrap; gap: 10px; font-size: 12px; color: var(--text-muted); margin-bottom: 6px; }
+    .event-meta span { display: flex; align-items: center; gap: 4px; }
+    .event-type-tag {
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.5px; padding: 2px 8px; border-radius: 4px;
+    }
+    .type-holiday  { background: rgba(78,205,196,0.2); color: var(--accent2); }
+    .type-birthday { background: rgba(255,169,77,0.2); color: var(--warn); }
+    .type-appointment { background: rgba(108,99,255,0.2); color: var(--accent); }
+    .type-social   { background: rgba(105,219,124,0.2); color: var(--success); }
+    .type-other    { background: rgba(123,130,160,0.2); color: var(--text-muted); }
+    .event-actions { display: flex; gap: 4px; flex-shrink: 0; }
+    .section-label {
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.5px; color: var(--text-muted); margin: 20px 0 10px;
+    }
+    .empty-state { text-align: center; padding: 60px 20px; color: var(--text-muted); }
+  </style>
+</head>
+<body>
+
+<nav>
+  <span class="logo">🧭 Our Compass</span>
+  <div class="nav-right">
+    <a href="app.html"     class="btn btn-ghost btn-sm">Goals</a>
+    <a href="events.html"  class="btn btn-ghost btn-sm" style="color:var(--accent)">Events</a>
+    <a href="budget.html"  class="btn btn-ghost btn-sm">Budget</a>
+    <a href="settings.html" class="btn btn-ghost btn-icon" title="Settings">⚙</a>
+    <div class="user-avatar" id="user-avatar"></div>
+    <button class="btn btn-ghost btn-sm" id="btn-signout">Sign out</button>
+  </div>
+</nav>
+
+<div class="events-wrap">
+  <div class="events-toolbar">
+    <div>
+      <h2 style="font-size:1.2rem;font-weight:700">Important Events</h2>
+      <div style="font-size:12px;color:var(--text-muted);margin-top:2px">Shared calendar for things that matter</div>
+    </div>
+    <button class="btn btn-primary" id="btn-add-event">+ Add Event</button>
+  </div>
+
+  <div id="events-list"><div class="empty-state">Loading…</div></div>
+</div>
+
+<!-- Add / Edit modal -->
+<div class="modal-backdrop hidden" id="modal-backdrop">
+  <div class="modal">
+    <h3 id="modal-title">Add Event</h3>
+    <form id="event-form">
+      <div class="form-group">
+        <label>Title *</label>
+        <input type="text" id="f-title" placeholder="e.g. Bali Holiday, Doctor Appointment" required>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Type</label>
+          <select id="f-type">
+            <option value="holiday">🌴 Holiday</option>
+            <option value="birthday">🎂 Birthday</option>
+            <option value="appointment">🏥 Appointment</option>
+            <option value="social">🎉 Social</option>
+            <option value="other">📌 Other</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Date *</label>
+          <input type="date" id="f-date" required>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Time (optional)</label>
+          <input type="time" id="f-time">
+        </div>
+        <div class="form-group">
+          <label>End Date (optional)</label>
+          <input type="date" id="f-end-date">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Location (optional)</label>
+        <input type="text" id="f-location" placeholder="e.g. Bali, Indonesia or 123 Main St">
+      </div>
+      <div class="form-group">
+        <label>Notes (optional)</label>
+        <textarea id="f-notes" placeholder="Any details, reminders, or links…"></textarea>
+      </div>
+      <div class="form-group">
+        <label>Budget link (optional)</label>
+        <select id="f-budget">
+          <option value="">— No budget linked —</option>
+        </select>
+      </div>
+      <div style="margin-bottom:16px">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" id="f-push-cal" checked>
+          <span style="font-size:13px">Push to Google Calendar when saved</span>
+        </label>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" id="modal-cancel">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save Event</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="toast" class="hidden"></div>
+
+<script src="firebase-config.js"></script>
+<script type="module">
+  import { initFirebase, onAuth, signOutUser } from "./js/auth.js";
+  import { subscribeEvents, addEvent, updateEvent, deleteEvent, subscribeBudgets } from "./js/db.js";
+  import { initCalendar, pushToCalendar } from "./js/calendar.js";
+
+  initFirebase();
+
+  let _events  = [];
+  let _budgets = [];
+  let _editId  = null;
+
+  onAuth(async user => {
+    if (!user) { window.location.href = "index.html"; return; }
+    document.getElementById("user-avatar").textContent =
+      (user.displayName || user.email).split(" ").slice(0,2).map(w=>w[0].toUpperCase()).join("");
+
+    await initCalendar().catch(() => {});
+
+    subscribeEvents(events => { _events = events; _render(); });
+    subscribeBudgets(budgets => { _budgets = budgets; _populateBudgetSelect(); });
+  });
+
+  document.getElementById("btn-signout").addEventListener("click", signOutUser);
+  document.getElementById("btn-add-event").addEventListener("click", () => _openModal(null));
+  document.getElementById("modal-cancel").addEventListener("click", _closeModal);
+  document.getElementById("modal-backdrop").addEventListener("click", e => {
+    if (e.target === e.currentTarget) _closeModal();
+  });
+  document.getElementById("event-form").addEventListener("submit", _handleSave);
+
+  function _render() {
+    const list = document.getElementById("events-list");
+    if (!_events.length) {
+      list.innerHTML = `<div class="empty-state">No events yet — add your first one!</div>`;
+      return;
+    }
+
+    const now      = new Date(); now.setHours(0,0,0,0);
+    const upcoming = _events.filter(e => new Date(e.date) >= now);
+    const past     = _events.filter(e => new Date(e.date) < now);
+
+    list.innerHTML = "";
+    if (upcoming.length) {
+      list.innerHTML += `<div class="section-label">Upcoming</div>`;
+      upcoming.forEach(e => list.insertAdjacentHTML("beforeend", _cardHTML(e)));
+    }
+    if (past.length) {
+      list.innerHTML += `<div class="section-label">Past</div>`;
+      past.forEach(e => list.insertAdjacentHTML("beforeend", _cardHTML(e)));
+    }
+
+    list.querySelectorAll(".btn-edit-ev").forEach(btn => {
+      btn.addEventListener("click", () => _openModal(_events.find(e => e.id === btn.dataset.id)));
+    });
+    list.querySelectorAll(".btn-del-ev").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const ev = _events.find(e => e.id === btn.dataset.id);
+        if (confirm(`Delete "${ev.title}"?`)) await deleteEvent(ev.id);
+      });
+    });
+    list.querySelectorAll(".btn-cal-ev").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const ev = _events.find(e => e.id === btn.dataset.id);
+        await _pushEvent(ev);
+      });
+    });
+  }
+
+  function _cardHTML(ev) {
+    const d     = new Date(ev.date);
+    const day   = d.getDate();
+    const month = d.toLocaleString("en-AU", { month: "short" });
+    const time  = ev.time ? `⏰ ${ev.time}` : "";
+    const loc   = ev.location ? `📍 ${_esc(ev.location)}` : "";
+    const bud   = ev.budgetId ? _budgets.find(b => b.id === ev.budgetId) : null;
+    return `
+      <div class="event-card">
+        <div class="event-date-box">
+          <div class="day">${day}</div>
+          <div class="month">${month}</div>
+        </div>
+        <div class="event-body">
+          <div class="event-title">${_esc(ev.title)}</div>
+          <div class="event-meta">
+            <span class="event-type-tag type-${ev.type}">${ev.type}</span>
+            ${time ? `<span>${time}</span>` : ""}
+            ${loc  ? `<span>${loc}</span>`  : ""}
+            ${bud  ? `<span>💰 ${_esc(bud.name)}</span>` : ""}
+          </div>
+          ${ev.notes ? `<div style="font-size:12px;color:var(--text-muted)">${_esc(ev.notes)}</div>` : ""}
+        </div>
+        <div class="event-actions">
+          <button class="btn btn-ghost btn-icon btn-cal-ev" data-id="${ev.id}" title="Push to Google Calendar">📅</button>
+          <button class="btn btn-ghost btn-icon btn-edit-ev" data-id="${ev.id}" title="Edit">✎</button>
+          <button class="btn btn-ghost btn-icon btn-del-ev" data-id="${ev.id}" title="Delete">✕</button>
+        </div>
+      </div>`;
+  }
+
+  function _populateBudgetSelect() {
+    const sel = document.getElementById("f-budget");
+    const cur = sel.value;
+    sel.innerHTML = `<option value="">— No budget linked —</option>` +
+      _budgets.map(b => `<option value="${b.id}">${_esc(b.name)}</option>`).join("");
+    sel.value = cur;
+  }
+
+  function _openModal(ev) {
+    _editId = ev?.id || null;
+    document.getElementById("modal-title").textContent = ev ? "Edit Event" : "Add Event";
+    document.getElementById("f-title").value    = ev?.title    || "";
+    document.getElementById("f-type").value     = ev?.type     || "holiday";
+    document.getElementById("f-date").value     = ev?.date     || "";
+    document.getElementById("f-time").value     = ev?.time     || "";
+    document.getElementById("f-end-date").value = ev?.endDate  || "";
+    document.getElementById("f-location").value = ev?.location || "";
+    document.getElementById("f-notes").value    = ev?.notes    || "";
+    document.getElementById("f-budget").value   = ev?.budgetId || "";
+    document.getElementById("f-push-cal").checked = true;
+    document.getElementById("modal-backdrop").classList.remove("hidden");
+    document.getElementById("f-title").focus();
+  }
+
+  function _closeModal() {
+    document.getElementById("modal-backdrop").classList.add("hidden");
+    _editId = null;
+  }
+
+  async function _handleSave(e) {
+    e.preventDefault();
+    const payload = {
+      title:    document.getElementById("f-title").value.trim(),
+      type:     document.getElementById("f-type").value,
+      date:     document.getElementById("f-date").value,
+      time:     document.getElementById("f-time").value || null,
+      endDate:  document.getElementById("f-end-date").value || null,
+      location: document.getElementById("f-location").value.trim() || null,
+      notes:    document.getElementById("f-notes").value.trim() || null,
+      budgetId: document.getElementById("f-budget").value || null,
+    };
+    const pushCal = document.getElementById("f-push-cal").checked;
+
+    if (_editId) {
+      await updateEvent(_editId, payload);
+    } else {
+      const ref = await addEvent(payload);
+      if (pushCal) await _pushEvent({ id: ref.id, ...payload });
+    }
+    _closeModal();
+  }
+
+  async function _pushEvent(ev) {
+    try {
+      await pushToCalendar({
+        title:   ev.title,
+        notes:   [ev.notes, ev.location ? `📍 ${ev.location}` : ""].filter(Boolean).join("\n"),
+        dueDate: ev.date,
+        time:    ev.time,
+        endDate: ev.endDate,
+        quadrant: ev.type
+      });
+      _showToast(`"${ev.title}" added to Google Calendar`, "success");
+    } catch(err) {
+      _showToast("Calendar error: " + err.message, "error");
+    }
+  }
+
+  function _showToast(msg, type = "success") {
+    const t = document.getElementById("toast");
+    t.textContent = msg; t.className = type;
+    t.classList.remove("hidden");
+    setTimeout(() => t.classList.add("hidden"), 3500);
+  }
+
+  function _esc(s) {
+    return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  }
+</script>
+</body>
+</html>

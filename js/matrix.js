@@ -3,10 +3,10 @@ import { addItem, updateItem, deleteItem, toggleDone } from "./db.js";
 import { suggestQuadrant } from "./claude.js";
 
 const QUADRANTS = [
-  { key: "ui", label: "Do First",    sub: "Urgent + Important" },
-  { key: "ni", label: "Schedule",    sub: "Not Urgent + Important" },
-  { key: "un", label: "Delegate",    sub: "Urgent + Not Important" },
-  { key: "nn", label: "Eliminate",   sub: "Not Urgent + Not Important" }
+  { key: "ui", label: "This Month",  sub: "Top priority — get it done" },
+  { key: "ni", label: "This Year",   sub: "Important but not urgent" },
+  { key: "un", label: "One Day",     sub: "Worth doing, lower priority" },
+  { key: "nn", label: "Maybe Never", sub: "Nice idea — park it for now" }
 ];
 
 const TYPES = ["goal", "project", "decision", "wishlist"];

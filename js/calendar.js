@@ -84,5 +84,5 @@ export async function pushToCalendar(item) {
 }
 
 function _quadrantLabel(q) {
-  return { ui: "Do First", ni: "Schedule", un: "Delegate", nn: "Eliminate" }[q] || q;
+  return { ui: "This Month", ni: "This Year", un: "One Day", nn: "Maybe Never" }[q] || q;
 }

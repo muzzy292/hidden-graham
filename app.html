@@ -14,6 +14,9 @@
 <nav id="app-nav">
   <span class="logo">🧭 Our Compass</span>
   <div class="nav-right">
+    <a href="app.html"    class="btn btn-ghost btn-sm" style="color:var(--accent)">Goals</a>
+    <a href="events.html" class="btn btn-ghost btn-sm">Events</a>
+    <a href="budget.html" class="btn btn-ghost btn-sm">Budget</a>
     <button class="btn btn-ghost btn-sm" id="btn-weekly">📋 This Week</button>
     <button class="btn btn-primary btn-sm" id="btn-add">+ Add Item</button>
     <a href="settings.html" class="btn btn-ghost btn-icon" id="btn-settings" title="Settings">⚙</a>
@@ -40,19 +43,7 @@
 
   <!-- Axis labels -->
   <div style="padding-left:24px;padding-bottom:24px;position:relative">
-    <div style="display:flex;justify-content:space-between;margin-bottom:4px;font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px">
-      <span>← Not Urgent</span>
-      <span style="font-weight:700;color:var(--text)">URGENCY</span>
-      <span>Urgent →</span>
-    </div>
-    <div style="display:flex;gap:12px">
-      <div style="writing-mode:vertical-rl;transform:rotate(180deg);font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;display:flex;justify-content:space-between;padding:8px 0;min-height:460px">
-        <span>↓ Not Important</span>
-        <span style="font-weight:700;color:var(--text)">IMPORTANCE</span>
-        <span>↑ Important</span>
-      </div>
-      <div class="matrix-grid" id="matrix-grid" style="flex:1"></div>
-    </div>
+    <div class="matrix-grid" id="matrix-grid"></div>
   </div>
 </div>
 
@@ -90,10 +81,10 @@
         <div class="form-group">
           <label for="f-quadrant">Quadrant</label>
           <select id="f-quadrant">
-            <option value="ui">🔴 Do First (Urgent + Important)</option>
-            <option value="ni">🟢 Schedule (Not Urgent + Important)</option>
-            <option value="un">🟡 Delegate (Urgent + Not Important)</option>
-            <option value="nn">⚫ Eliminate (Not Urgent + Not Important)</option>
+            <option value="ui">🔴 This Month</option>
+            <option value="ni">🟢 This Year</option>
+            <option value="un">🟡 One Day</option>
+            <option value="nn">⚫ Maybe Never</option>
           </select>
         </div>
       </div>
