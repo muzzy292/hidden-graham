@@ -1,42 +1,57 @@
 // Google Calendar API — OAuth consent + push events
 let _gapiReady   = false;
+let _gisReady    = false;
 let _tokenClient = null;
 
-export async function initCalendar() {
-  return new Promise((resolve) => {
-    const script = document.createElement("script");
-    script.src = "https://apis.google.com/js/api.js";
-    script.onload = () => {
-      gapi.load("client", async () => {
-        await gapi.client.init({
-          apiKey:      GAPI_CONFIG.apiKey,
-          discoveryDocs: [GAPI_CONFIG.discoveryDoc]
-        });
-        _gapiReady = true;
-
-        // Load GIS token client
-        _tokenClient = google.accounts.oauth2.initTokenClient({
-          client_id: GAPI_CONFIG.clientId,
-          scope:     GAPI_CONFIG.scopes,
-          callback:  () => {}
-        });
-        resolve();
-      });
-    };
-    document.head.appendChild(script);
-
-    const gisScript = document.createElement("script");
-    gisScript.src = "https://accounts.google.com/gsi/client";
-    document.head.appendChild(gisScript);
+function _loadScript(src) {
+  return new Promise((resolve, reject) => {
+    if (document.querySelector(`script[src="${src}"]`)) { resolve(); return; }
+    const s = document.createElement("script");
+    s.src = src;
+    s.onload  = resolve;
+    s.onerror = reject;
+    document.head.appendChild(s);
   });
 }
 
-// Request calendar access (shows Google consent dialog if needed).
-export function connectCalendar() {
+export async function initCalendar() {
+  if (_gapiReady && _gisReady) return;
+
+  // Load both scripts concurrently then initialise in order
+  await Promise.all([
+    _loadScript("https://apis.google.com/js/api.js"),
+    _loadScript("https://accounts.google.com/gsi/client")
+  ]);
+
+  // Initialise GAPI client
+  await new Promise((resolve, reject) => {
+    gapi.load("client", async () => {
+      try {
+        await gapi.client.init({
+          apiKey:        GAPI_CONFIG.apiKey,
+          discoveryDocs: [GAPI_CONFIG.discoveryDoc]
+        });
+        _gapiReady = true;
+        resolve();
+      } catch (e) { reject(e); }
+    });
+  });
+
+  // Initialise GIS token client (google.accounts is now guaranteed loaded)
+  _tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: GAPI_CONFIG.clientId,
+    scope:     GAPI_CONFIG.scopes,
+    callback:  () => {}
+  });
+  _gisReady = true;
+}
+
+// Request calendar access — shows Google consent popup
+export async function connectCalendar() {
+  await initCalendar();
   return new Promise((resolve, reject) => {
-    if (!_tokenClient) { reject(new Error("GAPI not initialised")); return; }
     _tokenClient.callback = (resp) => {
-      if (resp.error) reject(resp);
+      if (resp.error) reject(new Error(resp.error));
       else resolve(resp);
     };
     _tokenClient.requestAccessToken({ prompt: "consent" });
@@ -44,45 +59,45 @@ export function connectCalendar() {
 }
 
 export async function pushToCalendar(item) {
-  if (!_gapiReady) await initCalendar();
+  await initCalendar();
 
-  // Ensure we have a token (silent request first, then prompt)
-  try {
-    _tokenClient.callback = () => {};
-    await new Promise((res, rej) => {
-      _tokenClient.callback = (r) => r.error ? rej(r) : res(r);
-      _tokenClient.requestAccessToken({ prompt: "" });
-    });
-  } catch {
+  // Get a token — silent first, prompt if needed
+  await new Promise((resolve, reject) => {
+    _tokenClient.callback = (r) => r.error ? reject(r) : resolve(r);
+    _tokenClient.requestAccessToken({ prompt: "" });
+  }).catch(async () => {
     await connectCalendar();
+  });
+
+  const tz  = "Australia/Sydney";
+  const allDay = !item.time || item.duration === 0;
+  let start, end;
+
+  if (allDay) {
+    const ds = item.dueDate || new Date().toISOString().slice(0, 10);
+    start = { date: ds };
+    end   = { date: ds };
+  } else {
+    const ds      = item.dueDate || new Date().toISOString().slice(0, 10);
+    const startDt = new Date(`${ds}T${item.time}:00`);
+    const endDt   = new Date(startDt.getTime() + (item.duration || 60) * 60000);
+    start = { dateTime: startDt.toISOString(), timeZone: tz };
+    end   = { dateTime: endDt.toISOString(),   timeZone: tz };
   }
-
-  const start = item.dueDate
-    ? { date: item.dueDate }
-    : { dateTime: new Date().toISOString(), timeZone: "Australia/Sydney" };
-
-  const event = {
-    summary:     item.title,
-    description: [
-      item.notes || "",
-      `Type: ${item.type}`,
-      `Quadrant: ${_quadrantLabel(item.quadrant)}`
-    ].filter(Boolean).join("\n"),
-    start,
-    end: item.dueDate ? { date: item.dueDate } : { dateTime: new Date(Date.now() + 3600000).toISOString(), timeZone: "Australia/Sydney" }
-  };
 
   const resp = await gapi.client.calendar.events.insert({
     calendarId: "primary",
-    resource:   event
+    resource: {
+      summary:     item.title,
+      description: [item.notes, item.location ? `📍 ${item.location}` : ""].filter(Boolean).join("\n"),
+      location:    item.location || undefined,
+      start,
+      end
+    }
   });
 
   if (resp.status === 200) {
     window._showToast?.(`"${item.title}" added to Google Calendar`, "success");
   }
   return resp;
-}
-
-function _quadrantLabel(q) {
-  return { ui: "This Month", ni: "This Year", un: "One Day", nn: "Maybe Never" }[q] || q;
 }
