@@ -8,6 +8,13 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
+    /* Push Google Places dropdown above the modal */
+    .pac-container { z-index: 9999 !important; background: #1a1d27; border: 1px solid #2e3250; border-radius: 6px; }
+    .pac-item { color: #e8eaf0; padding: 8px 12px; cursor: pointer; font-family: 'Inter', sans-serif; font-size: 13px; }
+    .pac-item:hover, .pac-item-selected { background: #22263a; }
+    .pac-item-query { color: #e8eaf0; }
+    .pac-matched { color: #6c63ff; font-weight: 600; }
+    .pac-icon { filter: invert(1) opacity(0.4); }
     .events-wrap { padding: 24px; max-width: 800px; margin: 0 auto; }
     .events-toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
     .event-card {
