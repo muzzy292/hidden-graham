@@ -157,6 +157,10 @@
         <textarea id="f-notes" placeholder="Any details, reminders, or links…"></textarea>
       </div>
       <div class="form-group">
+        <label>Attendees</label>
+        <div id="f-attendees" style="display:flex;flex-direction:column;gap:6px;margin-top:2px"></div>
+      </div>
+      <div class="form-group">
         <label>Budget link (optional)</label>
         <select id="f-budget">
           <option value="">— No budget linked —</option>
@@ -203,15 +207,16 @@
   window._mapsReady = _initPlacesAutocomplete;
 </script>
 <script type="module">
-  import { initFirebase, onAuth, signOutUser } from "./js/auth.js";
+  import { initFirebase, onAuth, signOutUser, getAllowedEmails } from "./js/auth.js";
   import { subscribeEvents, addEvent, updateEvent, deleteEvent, subscribeBudgets } from "./js/db.js";
   import { initCalendar, pushToCalendar } from "./js/calendar.js";
 
   initFirebase();
 
-  let _events  = [];
-  let _budgets = [];
-  let _editId  = null;
+  let _events    = [];
+  let _budgets   = [];
+  let _editId    = null;
+  let _allEmails = [];
 
   onAuth(async user => {
     if (!user) { window.location.href = "index.html"; return; }
@@ -219,6 +224,7 @@
       (user.displayName || user.email).split(" ").slice(0,2).map(w=>w[0].toUpperCase()).join("");
 
     await initCalendar().catch(() => {});
+    _allEmails = await getAllowedEmails();
 
     subscribeEvents(events => { _events = events; _render(); });
     subscribeBudgets(budgets => { _budgets = budgets; _populateBudgetSelect(); });
@@ -353,6 +359,12 @@
     document.getElementById("f-notes").value      = ev?.notes      || "";
     document.getElementById("f-budget").value     = ev?.budgetId   || "";
     document.getElementById("f-push-cal").checked = true;
+    const saved = ev?.attendees || [];
+    document.getElementById("f-attendees").innerHTML = _allEmails.map(email => `
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:var(--text)">
+        <input type="checkbox" value="${email}" ${saved.includes(email) ? "checked" : ""}>
+        ${email}
+      </label>`).join("");
     _updateFormFields();
     document.getElementById("modal-backdrop").classList.remove("hidden");
     document.getElementById("f-title").focus();
@@ -380,6 +392,7 @@
       location:  document.getElementById("f-location").value.trim() || null,
       notes:     document.getElementById("f-notes").value.trim() || null,
       budgetId:  document.getElementById("f-budget").value || null,
+      attendees: [...document.querySelectorAll("#f-attendees input:checked")].map(cb => cb.value),
     };
     const pushCal = document.getElementById("f-push-cal").checked;
 
@@ -426,7 +439,8 @@
           summary:     ev.title,
           description: ev.notes || undefined,
           location:    ev.location || undefined,
-          start, end
+          start, end,
+          attendees:   (ev.attendees || []).map(email => ({ email })),
         }
       });
       _showToast(`"${ev.title}" added to Google Calendar`, "success");
