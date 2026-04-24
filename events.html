@@ -363,22 +363,29 @@
 
   async function _pushEvent(ev) {
     try {
-      const tz    = "Australia/Sydney";
-      const allDay = !ev.time || ev.duration === 0;
+      const tz     = "Australia/Sydney";
+      const allDay = !ev.time;
+      // Use display date if available (recurring next occurrence), else raw date string
+      const ds = ev._display
+        ? `${ev._display.getFullYear()}-${String(ev._display.getMonth()+1).padStart(2,"0")}-${String(ev._display.getDate()).padStart(2,"0")}`
+        : ev.date;
       let start, end;
 
       if (allDay) {
-        const d = ev._display || new Date(ev.date);
-        const ds = d.toISOString().slice(0, 10);
         start = { date: ds };
         end   = { date: ds };
       } else {
-        const d   = ev._display || new Date(ev.date);
-        const ds  = d.toISOString().slice(0, 10);
-        const startDt = new Date(`${ds}T${ev.time}:00`);
-        const endDt   = new Date(startDt.getTime() + (ev.duration || 60) * 60000);
-        start = { dateTime: startDt.toISOString(), timeZone: tz };
-        end   = { dateTime: endDt.toISOString(),   timeZone: tz };
+        // Pass local datetime string + timeZone so Google interprets it correctly in Sydney time
+        const durationMins = ev.duration || 60;
+        const [h, m] = ev.time.split(":").map(Number);
+        const endMins = h * 60 + m + durationMins;
+        const endH    = String(Math.floor(endMins / 60) % 24).padStart(2, "0");
+        const endM    = String(endMins % 60).padStart(2, "0");
+        const endDate = endMins >= 1440
+          ? (() => { const d = new Date(`${ds}T00:00:00`); d.setDate(d.getDate() + Math.floor(endMins / 1440)); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; })()
+          : ds;
+        start = { dateTime: `${ds}T${ev.time}:00`,      timeZone: tz };
+        end   = { dateTime: `${endDate}T${endH}:${endM}:00`, timeZone: tz };
       }
 
       const { gapi } = window;
@@ -386,7 +393,7 @@
         calendarId: "primary",
         resource: {
           summary:     ev.title,
-          description: [ev.notes, ev.location ? `📍 ${ev.location}` : ""].filter(Boolean).join("\n"),
+          description: ev.notes || undefined,
           location:    ev.location || undefined,
           start, end
         }

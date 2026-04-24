@@ -69,27 +69,29 @@ export async function pushToCalendar(item) {
     await connectCalendar();
   });
 
-  const tz  = "Australia/Sydney";
-  const allDay = !item.time || item.duration === 0;
+  const tz     = "Australia/Sydney";
+  const ds     = item.dueDate || new Date().toISOString().slice(0, 10);
+  const allDay = !item.time;
   let start, end;
 
   if (allDay) {
-    const ds = item.dueDate || new Date().toISOString().slice(0, 10);
     start = { date: ds };
     end   = { date: ds };
   } else {
-    const ds      = item.dueDate || new Date().toISOString().slice(0, 10);
-    const startDt = new Date(`${ds}T${item.time}:00`);
-    const endDt   = new Date(startDt.getTime() + (item.duration || 60) * 60000);
-    start = { dateTime: startDt.toISOString(), timeZone: tz };
-    end   = { dateTime: endDt.toISOString(),   timeZone: tz };
+    const durationMins = item.duration || 60;
+    const [h, m] = item.time.split(":").map(Number);
+    const endMins = h * 60 + m + durationMins;
+    const endH    = String(Math.floor(endMins / 60) % 24).padStart(2, "0");
+    const endM    = String(endMins % 60).padStart(2, "0");
+    start = { dateTime: `${ds}T${item.time}:00`,          timeZone: tz };
+    end   = { dateTime: `${ds}T${endH}:${endM}:00`,       timeZone: tz };
   }
 
   const resp = await gapi.client.calendar.events.insert({
     calendarId: "primary",
     resource: {
       summary:     item.title,
-      description: [item.notes, item.location ? `📍 ${item.location}` : ""].filter(Boolean).join("\n"),
+      description: item.notes || undefined,
       location:    item.location || undefined,
       start,
       end
