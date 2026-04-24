@@ -221,6 +221,10 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 .item-card:hover { border-color: var(--accent); box-shadow: 0 2px 12px rgba(108,99,255,0.2); }
 .item-card.dragging { opacity: 0.4; cursor: grabbing; }
 
+.completed-section { margin-top: 4px; border-top: 1px dashed var(--border); padding-top: 6px; }
+.completed-section .item-card { opacity: 0.55; }
+.completed-section .item-card:hover { opacity: 0.85; }
+
 .item-card-top {
   display: flex;
   align-items: flex-start;

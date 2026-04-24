@@ -60,28 +60,54 @@ function _renderAllQuadrants() {
   QUADRANTS.forEach(q => _renderQuadrant(q.key));
 }
 
+// Track which quadrants have their completed section open
+const _completedOpen = { ui: false, ni: false, un: false, nn: false };
+
 function _renderQuadrant(qKey) {
   const filtered = _items.filter(it =>
     it.quadrant === qKey && (_filter === "all" || it.type === _filter)
   );
+  const active    = filtered.filter(it => !it.done);
+  const completed = filtered.filter(it => it.done);
+
   const container = document.getElementById(`items-${qKey}`);
   const count     = document.getElementById(`count-${qKey}`);
   if (!container) return;
 
-  count.textContent = filtered.length;
-  container.innerHTML = filtered.map(it => _cardHTML(it)).join("");
+  count.textContent = active.length;
 
+  const isOpen = _completedOpen[qKey];
+  container.innerHTML =
+    active.map(it => _cardHTML(it)).join("") +
+    (completed.length ? `
+      <button class="btn btn-ghost btn-sm completed-toggle" data-q="${qKey}"
+        style="margin-top:8px;width:100%;justify-content:center;font-size:12px;color:var(--text-muted)">
+        ${isOpen ? "▲" : "▼"} ${completed.length} completed
+      </button>
+      <div class="completed-section" id="completed-${qKey}" style="display:${isOpen ? "block" : "none"}">
+        ${completed.map(it => _cardHTML(it)).join("")}
+      </div>` : "");
+
+  // Bind toggle
+  container.querySelector(".completed-toggle")?.addEventListener("click", () => {
+    _completedOpen[qKey] = !_completedOpen[qKey];
+    _renderQuadrant(qKey);
+  });
+
+  _bindCards(container);
+}
+
+function _bindCards(container) {
   container.querySelectorAll(".item-card").forEach(card => {
-    const id = card.dataset.id;
+    const id   = card.dataset.id;
     const item = _items.find(i => i.id === id);
 
-    card.setAttribute("draggable", "true");
+    card.setAttribute("draggable", !item.done);
     card.addEventListener("dragstart", e => _onDragStart(e, id));
-    card.addEventListener("dragend",   e => card.classList.remove("dragging"));
+    card.addEventListener("dragend",   () => card.classList.remove("dragging"));
 
     card.querySelector(".btn-edit")?.addEventListener("click", e => {
-      e.stopPropagation();
-      openModal(item);
+      e.stopPropagation(); openModal(item);
     });
     card.querySelector(".btn-del")?.addEventListener("click", async e => {
       e.stopPropagation();
