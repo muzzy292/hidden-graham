@@ -1,7 +1,7 @@
 // Claude API calls — quadrant suggestion, action plan, weekly digest
 // Uses claude-haiku-4-5-20251001 for speed on short tasks; sonnet for digest.
 
-const CLAUDE_API = "https://api.anthropic.com/v1/messages";
+const CLAUDE_API = "https://claude-proxy.ckmuzza.workers.dev/";
 
 async function _call(apiKey, model, messages, maxTokens = 512) {
   const resp = await fetch(CLAUDE_API, {
@@ -10,8 +10,7 @@ async function _call(apiKey, model, messages, maxTokens = 512) {
       "x-api-key":         apiKey,
       "anthropic-version": "2023-06-01",
       "content-type":      "application/json",
-      // CORS note: Anthropic allows browser requests from any origin
-      "anthropic-dangerous-allow-browser": "true"
+      // Requests go via Cloudflare Worker proxy — no browser CORS header needed
     },
     body: JSON.stringify({ model, max_tokens: maxTokens, messages })
   });

@@ -1,6 +1,7 @@
 // Claude receipt & email scanning for tax deductions
 
-const MODEL  = "claude-3-5-haiku-20241022";
+const PROXY  = "https://claude-proxy.ckmuzza.workers.dev/";
+const MODEL  = "claude-haiku-4-5-20251001";
 const MAX_B64_BYTES = 4_000_000; // ~3MB file ≈ 4MB base64 — stay under Anthropic's limit
 
 const PROMPT = `You are an Australian tax assistant. Extract ALL individual line items from this receipt or document as separate deductions.
@@ -31,13 +32,12 @@ Rules:
 async function _callClaude(messages, apiKey) {
   let resp;
   try {
-    resp = await fetch("https://api.anthropic.com/v1/messages", {
+    resp = await fetch(PROXY, {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
+        "Content-Type":      "application/json",
+        "x-api-key":         apiKey,
         "anthropic-version": "2023-06-01",
-        "anthropic-dangerous-allow-browser": "true"
       },
       body: JSON.stringify({
         model: MODEL,
