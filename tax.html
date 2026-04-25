@@ -206,6 +206,12 @@
     </div>
   </div>
 
+  <!-- Person filter -->
+  <div id="person-filter-row" style="display:none;margin-bottom:16px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+    <span style="font-size:12px;color:var(--text-muted);font-weight:600">Filter by:</span>
+    <div id="person-chips"></div>
+  </div>
+
   <!-- Category breakdown -->
   <div class="cat-grid" id="cat-grid"></div>
 
@@ -269,19 +275,27 @@
           <input type="number" id="f-gst" placeholder="0.00" step="0.01" min="0">
         </div>
       </div>
-      <div class="form-group">
-        <label>ATO Category *</label>
-        <select id="f-category" required>
-          <option value="">— Select category —</option>
-          <option value="work-related">💼 Work-related expenses</option>
-          <option value="vehicle-travel">🚗 Vehicle & travel</option>
-          <option value="home-office">🏠 Home office</option>
-          <option value="phone-internet">📱 Phone & internet</option>
-          <option value="self-education">📚 Self-education</option>
-          <option value="donations">❤️ Donations</option>
-          <option value="investment">📈 Investment & rental</option>
-          <option value="other">📌 Other</option>
-        </select>
+      <div class="form-row">
+        <div class="form-group">
+          <label>ATO Category *</label>
+          <select id="f-category" required>
+            <option value="">— Select category —</option>
+            <option value="work-related">💼 Work-related expenses</option>
+            <option value="vehicle-travel">🚗 Vehicle & travel</option>
+            <option value="home-office">🏠 Home office</option>
+            <option value="phone-internet">📱 Phone & internet</option>
+            <option value="self-education">📚 Self-education</option>
+            <option value="donations">❤️ Donations</option>
+            <option value="investment">📈 Investment & rental</option>
+            <option value="other">📌 Other</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>For</label>
+          <select id="f-person">
+            <option value="">Both / Shared</option>
+          </select>
+        </div>
       </div>
       <div class="form-group">
         <label>Description</label>
@@ -313,7 +327,7 @@
 
 <script src="firebase-config.js"></script>
 <script type="module">
-  import { initFirebase, onAuth, signOutUser } from "./js/auth.js";
+  import { initFirebase, onAuth, signOutUser, getAllowedEmails } from "./js/auth.js";
   import { subscribeDeductions, addDeduction, updateDeduction, deleteDeduction, getUserSettings } from "./js/db.js";
   import { scanReceiptImage, scanEmailText } from "./js/claude-scan.js";
 
@@ -330,14 +344,16 @@
     "other":          { label: "Other",            emoji: "📌" },
   };
 
-  let _deductions  = [];
-  let _fy          = _currentFY();
-  let _catFilter   = null;
-  let _editId      = null;
-  let _claudeKey   = null;
-  let _user        = null;
-  let _receiptFiles = [];
-  let _activeTab    = "photo";
+  let _deductions    = [];
+  let _fy            = _currentFY();
+  let _catFilter     = null;
+  let _personFilter  = null;
+  let _allowedEmails = [];
+  let _editId        = null;
+  let _claudeKey     = null;
+  let _user          = null;
+  let _receiptFiles  = [];
+  let _activeTab     = "photo";
 
   // ── Financial year helpers ──────────────────────────────────────────────────
   function _currentFY() {
@@ -369,8 +385,12 @@
       (user.displayName || user.email).split(" ").slice(0,2).map(w => w[0].toUpperCase()).join("");
     document.getElementById("btn-signout").addEventListener("click", signOutUser);
 
-    const settings = await getUserSettings(user.uid).catch(() => ({}));
-    _claudeKey = settings.claudeApiKey || null;
+    const [settings, emails] = await Promise.all([
+      getUserSettings(user.uid).catch(() => ({})),
+      getAllowedEmails().catch(() => [])
+    ]);
+    _claudeKey     = settings.claudeApiKey || null;
+    _allowedEmails = emails;
 
     _populateFYSelect();
     subscribeDeductions(items => { _deductions = items; _render(); });
@@ -379,15 +399,28 @@
   // ── Render ──────────────────────────────────────────────────────────────────
   function _filtered() {
     return _deductions.filter(d =>
-      d.financialYear === _fy && (!_catFilter || d.category === _catFilter)
+      d.financialYear === _fy &&
+      (!_catFilter    || d.category === _catFilter) &&
+      (!_personFilter || d.person   === _personFilter || (!d.person && _personFilter === "__shared__"))
     );
   }
 
   function _allFY() {
-    return _deductions.filter(d => d.financialYear === _fy);
+    // Respects person filter so stats update when a person is selected
+    return _deductions.filter(d =>
+      d.financialYear === _fy &&
+      (!_personFilter || d.person === _personFilter || (!d.person && _personFilter === "__shared__"))
+    );
+  }
+
+  function _nameFromEmail(email) {
+    if (!email) return "Shared";
+    const local = email.split("@")[0];
+    return local.charAt(0).toUpperCase() + local.slice(1);
   }
 
   function _render() {
+    _renderPersonFilter();
     const all      = _allFY();
     const filtered = _filtered();
 
@@ -402,6 +435,33 @@
 
     _renderCats(all);
     _renderList(filtered);
+  }
+
+  function _renderPersonFilter() {
+    const row   = document.getElementById("person-filter-row");
+    const chips = document.getElementById("person-chips");
+    if (_allowedEmails.length < 2) { row.style.display = "none"; return; }
+    row.style.display = "flex";
+
+    const options = [
+      { value: null,         label: "👥 Everyone" },
+      ..._allowedEmails.map(e => ({ value: e, label: "👤 " + _nameFromEmail(e) })),
+      { value: "__shared__", label: "🤝 Shared" },
+    ];
+
+    chips.innerHTML = options.map(o => `
+      <button class="filter-chip${_personFilter === o.value ? " active" : ""}" data-val="${o.value ?? ""}">
+        ${o.label}
+      </button>`).join("");
+
+    chips.querySelectorAll(".filter-chip").forEach(c => {
+      c.addEventListener("click", () => {
+        const v = c.dataset.val;
+        _personFilter = v === "" ? null : v;
+        _catFilter    = null;   // reset category when switching person
+        _render();
+      });
+    });
   }
 
   function _renderCats(all) {
@@ -460,6 +520,9 @@
             ${d.description ? `<div class="deduction-desc">${_esc(d.description)}</div>` : ""}
             <div class="deduction-meta">
               <span class="cat-badge">${CATS[d.category]?.emoji || ""} ${CATS[d.category]?.label || d.category || ""}</span>
+              ${d.person
+                ? `<span style="font-size:10px;font-weight:600;padding:2px 8px;border-radius:4px;background:rgba(126,184,164,0.18);color:#4a8f78">👤 ${_nameFromEmail(d.person)}</span>`
+                : `<span style="font-size:10px;color:var(--text-muted)">🤝 Shared</span>`}
               ${d.gst ? `<span style="font-size:11px;color:var(--text-muted)">GST ${_fmt(d.gst)}</span>` : ""}
               <span style="font-size:11px;color:var(--text-muted)">Ex GST ${_fmt(exGst)}</span>
             </div>
@@ -500,6 +563,11 @@
     document.getElementById("scan-result").classList.remove("show");
     document.getElementById("f-email-text").value = "";
     document.getElementById("drop-label").innerHTML = "📷 Tap to select, drag, or <kbd style=\"background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:1px 5px;font-size:10px\">Ctrl+V</kbd> paste a receipt<br><span style=\"font-size:11px;opacity:0.7\">Select multiple files at once</span>";
+    // Populate "For" select from allowed emails
+    const personSel = document.getElementById("f-person");
+    personSel.innerHTML = `<option value="">Both / Shared</option>` +
+      _allowedEmails.map(e => `<option value="${e}">${_nameFromEmail(e)} (${e})</option>`).join("");
+    personSel.value = item?.person || "";
     document.getElementById("btn-scan-photo").disabled = true;
     document.getElementById("file-list").innerHTML = "";
     document.getElementById("file-list").style.display = "none";
@@ -657,11 +725,18 @@
           <input type="number" value="${item.gst || ""}" placeholder="GST" step="0.01"
             oninput="window._reviewItems[${idx}].gst=parseFloat(this.value)||0">
         </div>
-        <div class="form-row">
+        <div class="form-row" style="margin-bottom:8px">
           <select onchange="window._reviewItems[${idx}].category=this.value">
             <option value="">— Category —</option>${catOptions}
           </select>
+          <select onchange="window._reviewItems[${idx}].person=this.value||null">
+            <option value="">🤝 Both / Shared</option>
+            ${_allowedEmails.map(e => `<option value="${e}">👤 ${_nameFromEmail(e)}</option>`).join("")}
+          </select>
+        </div>
+        <div class="form-row">
           <input type="text" value="${item.description || ""}" placeholder="Description"
+            style="grid-column:1/-1"
             oninput="window._reviewItems[${idx}].description=this.value">
         </div>
         <script>
@@ -719,6 +794,7 @@
         amountExGst:   Math.round((amount - gst) * 100) / 100,
         category:      item.category    || "other",
         description:   item.description || null,
+        person:        item.person      || null,
         createdBy:     _user.uid,
       };
 
@@ -787,6 +863,7 @@
       amountExGst:   Math.round((amount - gst) * 100) / 100,
       category:      document.getElementById("f-category").value,
       description:   document.getElementById("f-desc").value.trim() || null,
+      person:        document.getElementById("f-person").value || null,
       createdBy:     _user.uid,
     };
 
