@@ -186,7 +186,7 @@
 <script type="module">
   import { initFirebase, onAuth, signOutUser, getAllowedEmails } from "./js/auth.js";
   import { subscribeEvents, addEvent, updateEvent, deleteEvent, subscribeBudgets } from "./js/db.js";
-  import { initCalendar, pushToCalendar } from "./js/calendar.js";
+  import { initCalendar, connectCalendar, ensureCalendarToken } from "./js/calendar.js";
 
   initFirebase();
 
@@ -429,6 +429,9 @@
         start = { dateTime: `${ds}T${ev.time}:00`,      timeZone: tz };
         end   = { dateTime: `${endDate}T${endH}:${endM}:00`, timeZone: tz };
       }
+
+      // Ensure we have a valid OAuth token before inserting
+      await ensureCalendarToken();
 
       const { gapi } = window;
       await gapi.client.calendar.events.insert({

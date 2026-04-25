@@ -46,6 +46,17 @@ export async function initCalendar() {
   _gisReady = true;
 }
 
+// Get a token silently, falling back to consent popup if needed
+export async function ensureCalendarToken() {
+  await initCalendar();
+  await new Promise((resolve, reject) => {
+    _tokenClient.callback = r => r.error ? reject(r) : resolve(r);
+    _tokenClient.requestAccessToken({ prompt: "" });
+  }).catch(async () => {
+    await connectCalendar();
+  });
+}
+
 // Request calendar access — shows Google consent popup
 export async function connectCalendar() {
   await initCalendar();
