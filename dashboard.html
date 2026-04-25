@@ -81,11 +81,13 @@
   <meta name="apple-mobile-web-app-title" content="Our Compass">
   <link rel="apple-touch-icon" href="/hidden-graham/icons/icon.svg">
   <script type="module" src="/hidden-graham/js/pwa.js"></script>
+  <script type="module" src="/hidden-graham/js/nav.js"></script>
 </head>
 <body>
 
 <nav id="app-nav">
   <span class="logo">🧭 Our Compass</span>
+  <button class="nav-hamburger" id="nav-hamburger" aria-label="Menu">☰</button>
   <div class="nav-right">
     <a href="dashboard.html" class="btn btn-ghost btn-sm" style="color:var(--accent)">Home</a>
     <a href="app.html"       class="btn btn-ghost btn-sm">Goals</a>
@@ -97,6 +99,15 @@
     <button class="btn btn-ghost btn-sm" id="btn-signout">Sign out</button>
   </div>
 </nav>
+<div id="nav-mobile-menu" class="nav-mobile-menu">
+  <a href="dashboard.html" class="btn btn-ghost btn-sm">🏠 Home</a>
+  <a href="app.html" class="btn btn-ghost btn-sm">🎯 Goals</a>
+  <a href="events.html" class="btn btn-ghost btn-sm">📅 Events</a>
+  <a href="budget.html" class="btn btn-ghost btn-sm">💰 Budget</a>
+  <a href="decisions.html" class="btn btn-ghost btn-sm">🤔 Decisions</a>
+  <a href="settings.html" class="btn btn-ghost btn-sm">⚙️ Settings</a>
+  <button class="btn btn-ghost btn-sm" id="mobile-signout">Sign out</button>
+</div>
 
 <div class="dash-wrap">
   <div class="dash-greeting">
