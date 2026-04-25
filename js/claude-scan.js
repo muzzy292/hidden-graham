@@ -1,20 +1,29 @@
 // Claude receipt & email scanning for tax deductions
 
-const PROMPT = `You are an Australian tax assistant. Extract deduction information from this receipt or document and return ONLY valid JSON — no explanation, no markdown, just the JSON object:
-{
-  "merchant": "business/store name",
-  "date": "YYYY-MM-DD",
-  "amount": 0.00,
-  "gst": 0.00,
-  "category": "work-related|vehicle-travel|home-office|phone-internet|self-education|donations|investment|other",
-  "description": "list all line items and quantities, e.g. Printer paper x2 $18.00, Pens $4.50, USB hub $32.00"
-}
+const PROMPT = `You are an Australian tax assistant. Extract ALL individual line items from this receipt or document as separate deductions.
+
+Return ONLY a valid JSON array — no explanation, no markdown:
+[
+  {
+    "merchant": "business/store name",
+    "date": "YYYY-MM-DD",
+    "amount": 0.00,
+    "gst": 0.00,
+    "category": "work-related|vehicle-travel|home-office|phone-internet|self-education|donations|investment|other",
+    "description": "item name and quantity, e.g. Printer paper A4 x2"
+  }
+]
+
 Rules:
-- amount = the TOTAL amount paid on the receipt (inc GST), not individual line items
-- gst = total GST paid (usually shown on receipt); if not shown, calculate as amount / 11
-- If multiple line items exist, use the receipt TOTAL for amount and list all items in description
-- Pick the single best ATO category that covers most of the purchase
-- Use null only if a field truly cannot be determined`;
+- Return ONE array entry per distinct line item on the receipt
+- If the receipt has only one item, return an array with one entry
+- amount = price of that individual line item (inc GST)
+- gst = GST for that line item; if not shown per item, calculate as amount / 11
+- date = the receipt date for all items
+- merchant = the store/supplier name for all items
+- Pick the most appropriate ATO category for each individual item
+- Use null only if a field truly cannot be determined
+- Do NOT return the receipt total as a line item`;
 
 async function _callClaude(messages, apiKey) {
   const resp = await fetch("https://api.anthropic.com/v1/messages", {
@@ -27,16 +36,19 @@ async function _callClaude(messages, apiKey) {
     },
     body: JSON.stringify({
       model: "claude-haiku-4-5",
-      max_tokens: 512,
+      max_tokens: 1024,
       messages
     })
   });
   if (!resp.ok) throw new Error(`API error ${resp.status}`);
   const data = await resp.json();
   const text = data.content?.[0]?.text || "";
-  const match = text.match(/\{[\s\S]*\}/);
-  if (!match) throw new Error("No JSON in response");
-  return JSON.parse(match[0]);
+  // Try array first, then object (wrap single object in array)
+  const arrMatch = text.match(/\[[\s\S]*\]/);
+  if (arrMatch) return JSON.parse(arrMatch[0]);
+  const objMatch = text.match(/\{[\s\S]*\}/);
+  if (objMatch) return [JSON.parse(objMatch[0])];
+  throw new Error("No JSON in response");
 }
 
 export async function scanReceiptImage(file, apiKey) {

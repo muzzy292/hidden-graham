@@ -110,6 +110,21 @@
       display: none;
     }
     .scan-result.show { display: block; }
+
+    /* Review screen */
+    .review-item {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); padding: 12px;
+      margin-bottom: 8px; position: relative;
+    }
+    .review-item.excluded { opacity: 0.4; }
+    .review-item input, .review-item select {
+      font-size: 12px; padding: 5px 8px;
+    }
+    .review-item-header {
+      display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+    }
+    .review-actions { display: flex; gap: 6px; margin-top: 12px; flex-wrap: wrap; }
     .scan-result strong { color: var(--accent); }
 
     @media (max-width: 640px) {
@@ -277,6 +292,20 @@
         <button type="submit" class="btn btn-primary">Save</button>
       </div>
     </form>
+  </div>
+</div>
+
+<!-- Review modal — shown after scanning -->
+<div class="modal-backdrop hidden" id="review-backdrop">
+  <div class="modal" style="max-width:620px">
+    <h3 id="review-title">Review Scanned Items</h3>
+    <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px" id="review-sub"></p>
+    <div id="review-list"></div>
+    <div class="review-actions">
+      <button class="btn btn-secondary" id="btn-merge" type="button">⊕ Merge All into One</button>
+      <button class="btn btn-secondary" id="btn-review-cancel" type="button">Cancel</button>
+      <button class="btn btn-primary" id="btn-save-review" type="button">Save Selected →</button>
+    </div>
   </div>
 </div>
 
@@ -537,7 +566,10 @@
       </div>`).join("");
   }
 
-  // ── Bulk Claude scan & save ──────────────────────────────────────────────────
+  // ── Bulk Claude scan → review screen ─────────────────────────────────────────
+  let _scannedItems  = [];  // [{...deductionData, _file}]
+  let _uploadedUrls  = {};  // file index → receiptUrl
+
   document.getElementById("btn-scan-photo").addEventListener("click", async () => {
     if (!_claudeKey) { _showToast("Add your Claude API key in Settings first", "error"); return; }
     if (!_receiptFiles.length) return;
@@ -546,52 +578,152 @@
     const progress = document.getElementById("bulk-progress");
     btn.disabled   = true;
     progress.style.display = "";
+    _scannedItems  = [];
+    _uploadedUrls  = {};
 
-    let saved = 0, failed = 0;
     for (let i = 0; i < _receiptFiles.length; i++) {
       const file = _receiptFiles[i];
       progress.textContent = `Scanning ${i + 1} of ${_receiptFiles.length}: ${file.name}…`;
       try {
-        const data = await scanReceiptImage(file, _claudeKey);
-        if (data.error) throw new Error(data.error);
-
-        const amount = parseFloat(data.amount) || 0;
-        const gst    = parseFloat(data.gst)    || 0;
-        const payload = {
-          financialYear: _fy,
-          merchant:      data.merchant    || file.name,
-          date:          data.date        || new Date().toISOString().slice(0,10),
-          amount,
-          gst,
-          amountExGst:   Math.round((amount - gst) * 100) / 100,
-          category:      data.category   || "other",
-          description:   data.description || null,
-          createdBy:     _user.uid,
-        };
-
-        // Upload image
-        try {
-          const { getStorage, ref, uploadBytes, getDownloadURL } =
-            await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js");
-          const storage = getStorage();
-          const ext = file.name.split(".").pop();
-          const storageRef = ref(storage, `receipts/${_user.uid}/${Date.now()}_${i}.${ext}`);
-          const snap = await uploadBytes(storageRef, file);
-          payload.receiptUrl = await getDownloadURL(snap.ref);
-        } catch(e) { /* Storage optional */ }
-
-        await addDeduction(payload);
-        saved++;
+        const items = await scanReceiptImage(file, _claudeKey);
+        // items is now an array
+        const arr = Array.isArray(items) ? items : [items];
+        arr.forEach(item => _scannedItems.push({ ...item, _fileIdx: i }));
       } catch(err) {
         console.warn(`Failed: ${file.name}`, err.message);
-        failed++;
+        _scannedItems.push({ _fileIdx: i, _error: err.message, merchant: file.name, date: null, amount: null, gst: null, category: "other", description: null });
       }
     }
 
     progress.style.display = "none";
     btn.disabled = false;
     _closeModal();
-    _showToast(`✅ Saved ${saved} deduction${saved !== 1 ? "s" : ""}${failed ? ` · ${failed} failed` : ""}`, saved ? "success" : "error");
+    _openReview();
+  });
+
+  // ── Review screen ────────────────────────────────────────────────────────────
+  function _openReview() {
+    const backdrop = document.getElementById("review-backdrop");
+    const sub      = document.getElementById("review-sub");
+    sub.textContent = `${_scannedItems.length} item${_scannedItems.length !== 1 ? "s" : ""} found — tick what to save, edit if needed, or merge all into one.`;
+    _renderReview();
+    backdrop.classList.remove("hidden");
+  }
+
+  function _renderReview() {
+    const list = document.getElementById("review-list");
+    const catOptions = Object.entries(CATS).map(([v, c]) =>
+      `<option value="${v}">${c.emoji} ${c.label}</option>`).join("");
+
+    list.innerHTML = _scannedItems.map((item, idx) => `
+      <div class="review-item${item._excluded ? " excluded" : ""}" data-idx="${idx}">
+        <div class="review-item-header">
+          <input type="checkbox" id="chk-${idx}" ${item._excluded ? "" : "checked"}
+            onchange="this.closest('.review-item').classList.toggle('excluded',!this.checked);window._reviewItems[${idx}]._excluded=!this.checked">
+          <label for="chk-${idx}" style="font-size:13px;font-weight:600;flex:1;cursor:pointer">
+            ${item._error ? `⚠️ Scan failed — ${item._error}` : `Item ${idx + 1}: ${item.merchant || "Unknown"}`}
+          </label>
+          <span style="font-size:13px;font-weight:700">${item.amount ? "$"+parseFloat(item.amount).toFixed(2) : ""}</span>
+        </div>
+        <div class="form-row" style="margin-bottom:8px">
+          <input type="text" value="${item.merchant || ""}" placeholder="Merchant"
+            oninput="window._reviewItems[${idx}].merchant=this.value">
+          <input type="date" value="${item.date || ""}"
+            oninput="window._reviewItems[${idx}].date=this.value">
+        </div>
+        <div class="form-row" style="margin-bottom:8px">
+          <input type="number" value="${item.amount || ""}" placeholder="Amount (inc GST)" step="0.01"
+            oninput="window._reviewItems[${idx}].amount=parseFloat(this.value)||0">
+          <input type="number" value="${item.gst || ""}" placeholder="GST" step="0.01"
+            oninput="window._reviewItems[${idx}].gst=parseFloat(this.value)||0">
+        </div>
+        <div class="form-row">
+          <select onchange="window._reviewItems[${idx}].category=this.value">
+            <option value="">— Category —</option>${catOptions}
+          </select>
+          <input type="text" value="${item.description || ""}" placeholder="Description"
+            oninput="window._reviewItems[${idx}].description=this.value">
+        </div>
+        <script>
+          (function(){var s=document.querySelector('[data-idx="${idx}"] select');if(s)s.value="${item.category||""}"})();
+        <\/script>
+      </div>`).join("");
+
+    // Expose items to inline handlers
+    window._reviewItems = _scannedItems;
+  }
+
+  document.getElementById("btn-review-cancel").addEventListener("click", () => {
+    document.getElementById("review-backdrop").classList.add("hidden");
+  });
+
+  document.getElementById("btn-merge").addEventListener("click", () => {
+    const active = _scannedItems.filter(i => !i._excluded);
+    if (!active.length) return;
+    const totalAmount = active.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0);
+    const totalGst    = active.reduce((s, i) => s + (parseFloat(i.gst)    || 0), 0);
+    const merged = {
+      merchant:    active[0].merchant || "",
+      date:        active[0].date     || "",
+      amount:      Math.round(totalAmount * 100) / 100,
+      gst:         Math.round(totalGst    * 100) / 100,
+      category:    active[0].category || "other",
+      description: active.map(i => i.description).filter(Boolean).join("; "),
+      _fileIdx:    active[0]._fileIdx,
+      _excluded:   false,
+    };
+    _scannedItems = [merged];
+    window._reviewItems = _scannedItems;
+    document.getElementById("review-sub").textContent = "Merged into one deduction — review and save.";
+    _renderReview();
+  });
+
+  document.getElementById("btn-save-review").addEventListener("click", async () => {
+    const toSave = _scannedItems.filter(i => !i._excluded && !i._error);
+    if (!toSave.length) { _showToast("No items selected", "error"); return; }
+
+    const btn = document.getElementById("btn-save-review");
+    btn.disabled = true;
+    btn.textContent = "Saving…";
+
+    let saved = 0;
+    for (const item of toSave) {
+      const amount = parseFloat(item.amount) || 0;
+      const gst    = parseFloat(item.gst)    || 0;
+      const payload = {
+        financialYear: _fy,
+        merchant:      item.merchant    || "Unknown",
+        date:          item.date        || new Date().toISOString().slice(0,10),
+        amount,
+        gst,
+        amountExGst:   Math.round((amount - gst) * 100) / 100,
+        category:      item.category    || "other",
+        description:   item.description || null,
+        createdBy:     _user.uid,
+      };
+
+      // Upload source receipt image if available
+      const file = _receiptFiles[item._fileIdx];
+      if (file) {
+        try {
+          const { getStorage, ref, uploadBytes, getDownloadURL } =
+            await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js");
+          const storage    = getStorage();
+          const ext        = file.name.split(".").pop();
+          const storageRef = ref(storage, `receipts/${_user.uid}/${Date.now()}.${ext}`);
+          const snap       = await uploadBytes(storageRef, file);
+          payload.receiptUrl = await getDownloadURL(snap.ref);
+        } catch(e) { /* Storage optional */ }
+      }
+
+      await addDeduction(payload);
+      saved++;
+    }
+
+    btn.disabled = false;
+    btn.textContent = "Save Selected →";
+    document.getElementById("review-backdrop").classList.add("hidden");
+    _showToast(`✅ Saved ${saved} deduction${saved !== 1 ? "s" : ""}`, "success");
   });
 
   // ── Single email scan (fills form for review) ────────────────────────────────
