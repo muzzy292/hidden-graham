@@ -65,6 +65,14 @@
       .dash-stats { grid-template-columns: 1fr 1fr; }
       .dash-grid  { grid-template-columns: 1fr; }
     }
+
+    /* Google Places dropdown */
+    .pac-container { z-index: 9999 !important; background: #1a1d27; border: 1px solid #2e3250; border-radius: 6px; }
+    .pac-item { color: #e8eaf0; padding: 8px 12px; cursor: pointer; font-family: 'Inter', sans-serif; font-size: 13px; }
+    .pac-item:hover, .pac-item-selected { background: #22263a; }
+    .pac-item-query { color: #e8eaf0; }
+    .pac-matched { color: #6c63ff; font-weight: 600; }
+    .pac-icon { filter: invert(1) opacity(0.4); }
   </style>
   <link rel="manifest" href="/hidden-graham/manifest.json">
   <meta name="theme-color" content="#6c63ff">
@@ -135,7 +143,10 @@
     <div class="dash-panel">
       <div class="dash-panel-header">
         <h3>📅 Coming Up</h3>
-        <a href="events.html">See all →</a>
+        <div style="display:flex;align-items:center;gap:8px">
+          <button class="btn btn-primary btn-sm" id="btn-add-event">+ Add Event</button>
+          <a href="events.html">See all →</a>
+        </div>
       </div>
       <div id="panel-events"><div class="empty-dash">Loading…</div></div>
     </div>
@@ -160,17 +171,226 @@
   </div>
 </div>
 
+<!-- Add Event modal -->
+<div class="modal-backdrop hidden" id="ev-modal-backdrop">
+  <div class="modal">
+    <h3>Add Event</h3>
+    <form id="ev-form">
+      <div class="form-group">
+        <label>Title *</label>
+        <input type="text" id="ev-title" placeholder="e.g. Bali Holiday, Doctor Appointment" required>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Type</label>
+          <select id="ev-type">
+            <option value="holiday">🌴 Holiday</option>
+            <option value="birthday">🎂 Birthday</option>
+            <option value="appointment">🏥 Appointment</option>
+            <option value="social">🎉 Social</option>
+            <option value="other">📌 Other</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Date *</label>
+          <input type="date" id="ev-date" required>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Repeats</label>
+          <select id="ev-recurring">
+            <option value="none">Does not repeat</option>
+            <option value="yearly">🔁 Every year</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>End Date (optional)</label>
+          <input type="date" id="ev-end-date">
+        </div>
+      </div>
+      <div class="form-row" id="ev-time-row">
+        <div class="form-group">
+          <label>Time (optional)</label>
+          <input type="time" id="ev-time">
+        </div>
+        <div class="form-group">
+          <label>Duration</label>
+          <select id="ev-duration">
+            <option value="0">All day</option>
+            <option value="30">30 minutes</option>
+            <option value="60" selected>1 hour</option>
+            <option value="120">2 hours</option>
+            <option value="180">3 hours</option>
+            <option value="240">4 hours</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Location (optional)</label>
+        <input type="text" id="ev-location" placeholder="Search for a place…" autocomplete="off">
+      </div>
+      <div class="form-group">
+        <label>Notes (optional)</label>
+        <textarea id="ev-notes" placeholder="Any details, reminders, or links…"></textarea>
+      </div>
+      <div class="form-group">
+        <label>Attendees</label>
+        <div id="ev-attendees" style="display:flex;flex-direction:column;gap:6px;margin-top:2px"></div>
+      </div>
+      <div style="margin-bottom:16px">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" id="ev-push-cal" checked>
+          <span style="font-size:13px">Push to Google Calendar when saved</span>
+        </label>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" id="ev-modal-cancel">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save Event</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <div id="toast" class="hidden"></div>
 
 <script src="firebase-config.js"></script>
 <script type="module">
-  import { initFirebase, onAuth, signOutUser } from "./js/auth.js";
-  import { subscribeItems, subscribeEvents, subscribeBudgets } from "./js/db.js";
+  import { initFirebase, onAuth, signOutUser, getAllowedEmails } from "./js/auth.js";
+  import { subscribeItems, subscribeEvents, subscribeBudgets, addEvent } from "./js/db.js";
   import { subscribeNotifications, markAllRead } from "./js/notifications.js";
+  import { initCalendar, ensureCalendarToken, connectCalendar } from "./js/calendar.js";
 
   initFirebase();
 
-  onAuth(user => {
+  // ── Add Event modal ────────────────────────────────────────────────────────
+  function _initPlaces() {
+    const input = document.getElementById("ev-location");
+    if (input._acBound) return;
+    if (window.google?.maps?.places) {
+      input._acBound = true;
+      const ac = new google.maps.places.Autocomplete(input, { fields: ["formatted_address", "name"] });
+      ac.addListener("place_changed", () => {
+        const p = ac.getPlace();
+        input.value = p.formatted_address || p.name || input.value;
+      });
+      return;
+    }
+    if (document.querySelector("script[data-maps]")) return;
+    const s = document.createElement("script");
+    s.dataset.maps = "1"; s.async = true;
+    s.src = `https://maps.googleapis.com/maps/api/js?key=${GAPI_CONFIG.apiKey}&libraries=places`;
+    s.onload = () => _initPlaces();
+    document.head.appendChild(s);
+  }
+
+  function _evUpdateFields() {
+    const type      = document.getElementById("ev-type").value;
+    const recurring = document.getElementById("ev-recurring").value;
+    document.getElementById("ev-time-row").style.display =
+      (type === "birthday" && recurring === "yearly") ? "none" : "";
+  }
+
+  async function _openEvModal() {
+    _initPlaces();
+    const allEmails = await getAllowedEmails();
+    document.getElementById("ev-title").value     = "";
+    document.getElementById("ev-type").value      = "holiday";
+    document.getElementById("ev-date").value      = "";
+    document.getElementById("ev-time").value      = "";
+    document.getElementById("ev-duration").value  = "60";
+    document.getElementById("ev-recurring").value = "none";
+    document.getElementById("ev-end-date").value  = "";
+    document.getElementById("ev-location").value  = "";
+    document.getElementById("ev-notes").value     = "";
+    document.getElementById("ev-push-cal").checked = true;
+    document.getElementById("ev-attendees").innerHTML = allEmails.map(email => `
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:var(--text)">
+        <input type="checkbox" value="${email}"> ${email}
+      </label>`).join("");
+    _evUpdateFields();
+    document.getElementById("ev-modal-backdrop").classList.remove("hidden");
+    document.getElementById("ev-title").focus();
+  }
+
+  function _closeEvModal() {
+    document.getElementById("ev-modal-backdrop").classList.add("hidden");
+  }
+
+  document.getElementById("btn-add-event").addEventListener("click", _openEvModal);
+  document.getElementById("ev-modal-cancel").addEventListener("click", _closeEvModal);
+  document.getElementById("ev-modal-backdrop").addEventListener("click", e => {
+    if (e.target === e.currentTarget) _closeEvModal();
+  });
+  document.getElementById("ev-type").addEventListener("change", _evUpdateFields);
+  document.getElementById("ev-recurring").addEventListener("change", _evUpdateFields);
+
+  document.getElementById("ev-form").addEventListener("submit", async e => {
+    e.preventDefault();
+    const type      = document.getElementById("ev-type").value;
+    const recurring = document.getElementById("ev-recurring").value;
+    const allDay    = type === "birthday" && recurring === "yearly";
+    const payload = {
+      title:     document.getElementById("ev-title").value.trim(),
+      type,
+      date:      document.getElementById("ev-date").value,
+      time:      allDay ? null : (document.getElementById("ev-time").value || null),
+      duration:  allDay ? 0   : parseInt(document.getElementById("ev-duration").value),
+      recurring,
+      endDate:   document.getElementById("ev-end-date").value || null,
+      location:  document.getElementById("ev-location").value.trim() || null,
+      notes:     document.getElementById("ev-notes").value.trim() || null,
+      attendees: [...document.querySelectorAll("#ev-attendees input:checked")].map(cb => cb.value),
+    };
+    if (!payload.title || !payload.date) return;
+
+    const ref = await addEvent(payload);
+
+    if (document.getElementById("ev-push-cal").checked) {
+      try {
+        await ensureCalendarToken();
+        const tz = "Australia/Sydney";
+        const ds = payload.date;
+        let start, end;
+        if (!payload.time) {
+          start = { date: ds }; end = { date: ds };
+        } else {
+          const dur = payload.duration || 60;
+          const [h, m] = payload.time.split(":").map(Number);
+          const endMins = h * 60 + m + dur;
+          const endH = String(Math.floor(endMins / 60) % 24).padStart(2, "0");
+          const endM = String(endMins % 60).padStart(2, "0");
+          start = { dateTime: `${ds}T${payload.time}:00`, timeZone: tz };
+          end   = { dateTime: `${ds}T${endH}:${endM}:00`, timeZone: tz };
+        }
+        await gapi.client.calendar.events.insert({
+          calendarId: "primary",
+          resource: {
+            summary: payload.title, description: payload.notes || undefined,
+            location: payload.location || undefined, start, end,
+            attendees: payload.attendees.map(email => ({ email })),
+          }
+        });
+        _showToast(`"${payload.title}" added to Google Calendar`, "success");
+      } catch(err) {
+        _showToast("Saved — calendar push failed: " + (err.message || ""), "error");
+      }
+    }
+
+    _closeEvModal();
+    _showToast(`"${payload.title}" added!`, "success");
+  });
+
+  function _showToast(msg, type = "success") {
+    const t = document.getElementById("toast");
+    t.textContent = msg; t.className = type;
+    t.classList.remove("hidden");
+    setTimeout(() => t.classList.add("hidden"), 3500);
+  }
+
+  onAuth(async user => {
+    if (!user) { window.location.href = "index.html"; return; }
+    await initCalendar().catch(() => {});
     if (!user) { window.location.href = "index.html"; return; }
 
     const name = (user.displayName || "").split(" ")[0] || "there";
