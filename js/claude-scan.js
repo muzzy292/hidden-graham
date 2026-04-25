@@ -51,17 +51,49 @@ async function _callClaude(messages, apiKey) {
   throw new Error("No JSON in response");
 }
 
-export async function scanReceiptImage(file, apiKey) {
-  const base64 = await new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload  = e => resolve(e.target.result.split(",")[1]);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
+// Compress image to max 1600px and JPEG 0.85 quality before sending to Claude
+async function _compressImage(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const MAX = 1600;
+      let { width, height } = img;
+      if (width > MAX || height > MAX) {
+        if (width > height) { height = Math.round(height * MAX / width); width = MAX; }
+        else                { width  = Math.round(width  * MAX / height); height = MAX; }
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = width; canvas.height = height;
+      canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+      URL.revokeObjectURL(url);
+      resolve(canvas.toDataURL("image/jpeg", 0.85).split(",")[1]);
+    };
+    img.onerror = reject;
+    img.src = url;
   });
+}
+
+export async function scanReceiptImage(file, apiKey) {
+  // Compress images; for PDFs fall back to raw base64
+  let base64, mimeType;
+  if (file.type === "application/pdf") {
+    base64 = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload  = e => resolve(e.target.result.split(",")[1]);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+    mimeType = "application/pdf";
+  } else {
+    base64   = await _compressImage(file);
+    mimeType = "image/jpeg";
+  }
+
   return _callClaude([{
     role: "user",
     content: [
-      { type: "image", source: { type: "base64", media_type: file.type, data: base64 } },
+      { type: "image", source: { type: "base64", media_type: mimeType, data: base64 } },
       { type: "text",  text: PROMPT }
     ]
   }], apiKey);
