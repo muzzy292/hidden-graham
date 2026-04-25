@@ -1,6 +1,6 @@
 // Service Worker — caches app shell for offline use
 // !! Bump this version on every deploy to force cache refresh !!
-const VERSION = "ourcompass-v20";
+const VERSION = "ourcompass-v21";
 const CACHE   = VERSION;
 
 const ASSETS = [

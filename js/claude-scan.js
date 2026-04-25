@@ -27,10 +27,12 @@ Rules:
 - merchant = the store/supplier name for all items
 - Pick the most appropriate ATO category for each individual item
 - Use null only if a field truly cannot be determined
-- Do NOT return the receipt total as a line item`;
+- Do NOT return the receipt total as a line item
+- Keep descriptions concise (under 60 characters)`;
 
-// beta = optional Anthropic beta header value (e.g. "pdfs-2024-09-25")
-async function _callClaude(messages, apiKey, beta = null) {
+// beta      = optional Anthropic beta header value (e.g. "pdfs-2024-09-25")
+// maxTokens = response token budget (receipts need more than emails)
+async function _callClaude(messages, apiKey, beta = null, maxTokens = 4096) {
   const headers = {
     "Content-Type":      "application/json",
     "x-api-key":         apiKey,
@@ -43,7 +45,7 @@ async function _callClaude(messages, apiKey, beta = null) {
     resp = await fetch(PROXY, {
       method: "POST",
       headers,
-      body: JSON.stringify({ model: MODEL, max_tokens: 1024, messages })
+      body: JSON.stringify({ model: MODEL, max_tokens: maxTokens, messages })
     });
   } catch (netErr) {
     throw new Error(`Network error — check your internet connection or API key. (${netErr.message})`);
@@ -56,12 +58,34 @@ async function _callClaude(messages, apiKey, beta = null) {
   }
 
   const data = await resp.json();
-  const text = data.content?.[0]?.text || "";
+  const raw  = data.content?.[0]?.text || "";
+  return _parseJson(raw);
+}
+
+// Robustly extract a JSON array from Claude's response.
+// Handles markdown fences, trailing commas, and single-object responses.
+function _parseJson(raw) {
+  // Strip markdown code fences
+  let text = raw.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
+
+  // Try array first
   const arrMatch = text.match(/\[[\s\S]*\]/);
-  if (arrMatch) return JSON.parse(arrMatch[0]);
+  if (arrMatch) {
+    // First attempt: parse as-is
+    try { return JSON.parse(arrMatch[0]); } catch(_) {}
+    // Second attempt: remove trailing commas before ] or }
+    try { return JSON.parse(arrMatch[0].replace(/,\s*([}\]])/g, "$1")); } catch(_) {}
+  }
+
+  // Try single object (wrap in array)
   const objMatch = text.match(/\{[\s\S]*\}/);
-  if (objMatch) return [JSON.parse(objMatch[0])];
-  throw new Error("No JSON in response");
+  if (objMatch) {
+    try { return [JSON.parse(objMatch[0])]; } catch(_) {}
+    try { return [JSON.parse(objMatch[0].replace(/,\s*([}\]])/g, "$1"))]; } catch(_) {}
+  }
+
+  console.error("[claude-scan] raw response:", raw);
+  throw new Error("Claude returned an unexpected format — try scanning again");
 }
 
 // Compress image to max 1200px, JPEG quality 0.75.
