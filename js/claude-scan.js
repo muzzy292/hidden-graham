@@ -1,15 +1,20 @@
 // Claude receipt & email scanning for tax deductions
 
-const PROMPT = `You are an Australian tax assistant. Extract deduction information and return ONLY valid JSON — no explanation, no markdown, just the JSON object:
+const PROMPT = `You are an Australian tax assistant. Extract deduction information from this receipt or document and return ONLY valid JSON — no explanation, no markdown, just the JSON object:
 {
   "merchant": "business/store name",
   "date": "YYYY-MM-DD",
   "amount": 0.00,
   "gst": 0.00,
   "category": "work-related|vehicle-travel|home-office|phone-internet|self-education|donations|investment|other",
-  "description": "brief description of what was purchased and why it is deductible"
+  "description": "list all line items and quantities, e.g. Printer paper x2 $18.00, Pens $4.50, USB hub $32.00"
 }
-Use null for any field you cannot determine. Amount should be the total paid (inc GST). GST is 1/11th of the total if the supplier is GST-registered.`;
+Rules:
+- amount = the TOTAL amount paid on the receipt (inc GST), not individual line items
+- gst = total GST paid (usually shown on receipt); if not shown, calculate as amount / 11
+- If multiple line items exist, use the receipt TOTAL for amount and list all items in description
+- Pick the single best ATO category that covers most of the purchase
+- Use null only if a field truly cannot be determined`;
 
 async function _callClaude(messages, apiKey) {
   const resp = await fetch("https://api.anthropic.com/v1/messages", {
