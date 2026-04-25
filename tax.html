@@ -285,8 +285,6 @@
   import { initFirebase, onAuth, signOutUser, getUserSettings } from "./js/auth.js";
   import { subscribeDeductions, addDeduction, updateDeduction, deleteDeduction } from "./js/db.js";
   import { scanReceiptImage, scanEmailText } from "./js/claude-scan.js";
-  import { getStorage, ref, uploadBytes, getDownloadURL }
-    from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
 
   initFirebase();
 
@@ -301,15 +299,14 @@
     "other":          { label: "Other",            emoji: "📌" },
   };
 
-  let _deductions = [];
-  let _fy         = _currentFY();
-  let _catFilter  = null;
-  let _editId     = null;
-  let _claudeKey  = null;
-  let _user       = null;
+  let _deductions  = [];
+  let _fy          = _currentFY();
+  let _catFilter   = null;
+  let _editId      = null;
+  let _claudeKey   = null;
+  let _user        = null;
   let _receiptFile = null;
-  let _storage    = null;
-  let _activeTab  = "photo";
+  let _activeTab   = "photo";
 
   // ── Financial year helpers ──────────────────────────────────────────────────
   function _currentFY() {
@@ -340,8 +337,6 @@
     document.getElementById("user-avatar").textContent =
       (user.displayName || user.email).split(" ").slice(0,2).map(w => w[0].toUpperCase()).join("");
     document.getElementById("btn-signout").addEventListener("click", signOutUser);
-
-    try { _storage = getStorage(); } catch(e) { /* Storage not enabled — uploads disabled */ }
 
     const settings = await getUserSettings(user.uid).catch(() => ({}));
     _claudeKey = settings.claudeKey || null;
@@ -582,11 +577,14 @@
     };
 
     // Upload receipt image to Firebase Storage if present
-    if (_receiptFile && _storage) {
+    if (_receiptFile) {
       try {
+        const { getStorage, ref, uploadBytes, getDownloadURL } =
+          await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js");
+        const storage = getStorage();
         const id  = _editId || Date.now().toString();
         const ext = _receiptFile.name.split(".").pop();
-        const storageRef = ref(_storage, `receipts/${_user.uid}/${id}.${ext}`);
+        const storageRef = ref(storage, `receipts/${_user.uid}/${id}.${ext}`);
         const snap = await uploadBytes(storageRef, _receiptFile);
         payload.receiptUrl = await getDownloadURL(snap.ref);
       } catch(err) {
