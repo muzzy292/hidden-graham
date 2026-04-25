@@ -341,7 +341,7 @@
     document.getElementById("btn-signout").addEventListener("click", signOutUser);
 
     const settings = await getUserSettings(user.uid).catch(() => ({}));
-    _claudeKey = settings.claudeKey || null;
+    _claudeKey = settings.claudeApiKey || null;
 
     _populateFYSelect();
     subscribeDeductions(items => { _deductions = items; _render(); });
