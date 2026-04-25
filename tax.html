@@ -213,12 +213,14 @@
 
       <div id="pane-photo">
         <div class="drop-zone" id="drop-zone">
-          <div id="drop-label">📷 Tap to photograph or upload receipt</div>
-          <input type="file" id="f-receipt-file" accept="image/*,application/pdf" style="display:none" capture="environment">
+          <div id="drop-label">📷 Tap to select or drag receipts here<br><span style="font-size:11px;opacity:0.7">Select multiple files at once</span></div>
+          <input type="file" id="f-receipt-file" accept="image/*,application/pdf" style="display:none" multiple>
         </div>
+        <div id="file-list" style="display:none;margin-bottom:10px;display:flex;flex-direction:column;gap:6px"></div>
         <button class="btn btn-primary btn-sm" id="btn-scan-photo" type="button" style="width:100%;justify-content:center;margin-bottom:12px" disabled>
-          ✨ Scan with Claude
+          ✨ Scan &amp; Save All with Claude
         </button>
+        <div id="bulk-progress" style="display:none;font-size:12px;color:var(--text-muted);text-align:center;margin-bottom:8px"></div>
       </div>
 
       <div id="pane-email" style="display:none">
@@ -305,8 +307,8 @@
   let _editId      = null;
   let _claudeKey   = null;
   let _user        = null;
-  let _receiptFile = null;
-  let _activeTab   = "photo";
+  let _receiptFiles = [];
+  let _activeTab    = "photo";
 
   // ── Financial year helpers ──────────────────────────────────────────────────
   function _currentFY() {
@@ -458,27 +460,31 @@
   // ── Modal ───────────────────────────────────────────────────────────────────
   function _openModal(item) {
     _editId       = item?.id || null;
-    _receiptFile  = null;
+    _receiptFiles = [];
     document.getElementById("modal-title").textContent = item ? "Edit Deduction" : "Add Deduction";
-    document.getElementById("f-merchant").value = item?.merchant  || "";
-    document.getElementById("f-date").value     = item?.date      || "";
-    document.getElementById("f-amount").value   = item?.amount    || "";
-    document.getElementById("f-gst").value      = item?.gst       || "";
-    document.getElementById("f-category").value = item?.category  || "";
-    document.getElementById("f-desc").value     = item?.description || "";
+    document.getElementById("f-merchant").value = item?.merchant     || "";
+    document.getElementById("f-date").value     = item?.date         || "";
+    document.getElementById("f-amount").value   = item?.amount       || "";
+    document.getElementById("f-gst").value      = item?.gst          || "";
+    document.getElementById("f-category").value = item?.category     || "";
+    document.getElementById("f-desc").value     = item?.description  || "";
     document.getElementById("scan-result").classList.remove("show");
     document.getElementById("f-email-text").value = "";
-    document.getElementById("drop-label").innerHTML = "📷 Tap to photograph or upload receipt";
+    document.getElementById("drop-label").innerHTML = "📷 Tap to select or drag receipts here<br><span style=\"font-size:11px;opacity:0.7\">Select multiple files at once</span>";
     document.getElementById("btn-scan-photo").disabled = true;
-    _setTab("photo");
+    document.getElementById("file-list").innerHTML = "";
+    document.getElementById("file-list").style.display = "none";
+    document.getElementById("bulk-progress").style.display = "none";
+    // Editing an existing item — switch to manual so form is visible
+    _setTab(item ? "manual" : "photo");
     document.getElementById("modal-backdrop").classList.remove("hidden");
     document.getElementById("f-merchant").focus();
   }
 
   function _closeModal() {
     document.getElementById("modal-backdrop").classList.add("hidden");
-    _editId = null;
-    _receiptFile = null;
+    _editId       = null;
+    _receiptFiles = [];
   }
 
   document.getElementById("btn-add").addEventListener("click", () => _openModal(null));
@@ -509,54 +515,110 @@
   dropZone.addEventListener("dragleave", () => dropZone.classList.remove("dragover"));
   dropZone.addEventListener("drop", e => {
     e.preventDefault(); dropZone.classList.remove("dragover");
-    const file = e.dataTransfer.files[0];
-    if (file) _setReceiptFile(file);
+    if (e.dataTransfer.files.length) _setReceiptFiles([...e.dataTransfer.files]);
   });
   fileInput.addEventListener("change", () => {
-    if (fileInput.files[0]) _setReceiptFile(fileInput.files[0]);
+    if (fileInput.files.length) _setReceiptFiles([...fileInput.files]);
   });
 
-  function _setReceiptFile(file) {
-    _receiptFile = file;
+  function _setReceiptFiles(files) {
+    _receiptFiles = files;
     document.getElementById("btn-scan-photo").disabled = false;
-    const lbl = document.getElementById("drop-label");
-    if (file.type.startsWith("image/")) {
-      const url = URL.createObjectURL(file);
-      lbl.innerHTML = `<img src="${url}" style="max-height:160px;max-width:100%;border-radius:4px"><div style="margin-top:6px">${file.name}</div>`;
-    } else {
-      lbl.innerHTML = `📄 ${file.name}`;
-    }
+    document.getElementById("drop-label").innerHTML =
+      `✅ ${files.length} file${files.length > 1 ? "s" : ""} selected`;
+
+    const listEl = document.getElementById("file-list");
+    listEl.style.display = "flex";
+    listEl.innerHTML = files.map((f, i) => `
+      <div style="display:flex;align-items:center;gap:8px;font-size:12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 10px">
+        ${f.type.startsWith("image/") ? `<img src="${URL.createObjectURL(f)}" style="width:36px;height:36px;object-fit:cover;border-radius:4px">` : "📄"}
+        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${f.name}</span>
+        <span style="color:var(--text-muted)">${(f.size/1024).toFixed(0)}KB</span>
+      </div>`).join("");
   }
 
-  // ── Claude scan ─────────────────────────────────────────────────────────────
-  async function _doScan(scanFn) {
+  // ── Bulk Claude scan & save ──────────────────────────────────────────────────
+  document.getElementById("btn-scan-photo").addEventListener("click", async () => {
     if (!_claudeKey) { _showToast("Add your Claude API key in Settings first", "error"); return; }
+    if (!_receiptFiles.length) return;
+
+    const btn      = document.getElementById("btn-scan-photo");
+    const progress = document.getElementById("bulk-progress");
+    btn.disabled   = true;
+    progress.style.display = "";
+
+    let saved = 0, failed = 0;
+    for (let i = 0; i < _receiptFiles.length; i++) {
+      const file = _receiptFiles[i];
+      progress.textContent = `Scanning ${i + 1} of ${_receiptFiles.length}: ${file.name}…`;
+      try {
+        const data = await scanReceiptImage(file, _claudeKey);
+        if (data.error) throw new Error(data.error);
+
+        const amount = parseFloat(data.amount) || 0;
+        const gst    = parseFloat(data.gst)    || 0;
+        const payload = {
+          financialYear: _fy,
+          merchant:      data.merchant    || file.name,
+          date:          data.date        || new Date().toISOString().slice(0,10),
+          amount,
+          gst,
+          amountExGst:   Math.round((amount - gst) * 100) / 100,
+          category:      data.category   || "other",
+          description:   data.description || null,
+          createdBy:     _user.uid,
+        };
+
+        // Upload image
+        try {
+          const { getStorage, ref, uploadBytes, getDownloadURL } =
+            await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js");
+          const storage = getStorage();
+          const ext = file.name.split(".").pop();
+          const storageRef = ref(storage, `receipts/${_user.uid}/${Date.now()}_${i}.${ext}`);
+          const snap = await uploadBytes(storageRef, file);
+          payload.receiptUrl = await getDownloadURL(snap.ref);
+        } catch(e) { /* Storage optional */ }
+
+        await addDeduction(payload);
+        saved++;
+      } catch(err) {
+        console.warn(`Failed: ${file.name}`, err.message);
+        failed++;
+      }
+    }
+
+    progress.style.display = "none";
+    btn.disabled = false;
+    _closeModal();
+    _showToast(`✅ Saved ${saved} deduction${saved !== 1 ? "s" : ""}${failed ? ` · ${failed} failed` : ""}`, saved ? "success" : "error");
+  });
+
+  // ── Single email scan (fills form for review) ────────────────────────────────
+  async function _doEmailScan() {
+    if (!_claudeKey) { _showToast("Add your Claude API key in Settings first", "error"); return; }
+    const text = document.getElementById("f-email-text").value.trim();
+    if (!text) { _showToast("Paste some email text first", "error"); return; }
     const resultEl = document.getElementById("scan-result");
     resultEl.classList.add("show");
     resultEl.textContent = "✨ Scanning…";
     try {
-      const data = await scanFn(_claudeKey);
+      const data = await scanEmailText(text, _claudeKey);
       if (data.error) throw new Error(data.error);
-      if (data.merchant)  document.getElementById("f-merchant").value = data.merchant;
-      if (data.date)      document.getElementById("f-date").value     = data.date;
-      if (data.amount)    document.getElementById("f-amount").value   = data.amount;
-      if (data.gst)       document.getElementById("f-gst").value      = data.gst;
-      if (data.category)  document.getElementById("f-category").value = data.category;
-      if (data.description) document.getElementById("f-desc").value   = data.description;
-      resultEl.innerHTML = `<strong>✅ Scanned:</strong> ${data.merchant || ""} · ${data.date || ""} · ${data.amount ? "$"+data.amount : ""} · ${CATS[data.category]?.label || data.category || ""}`;
+      if (data.merchant)    document.getElementById("f-merchant").value = data.merchant;
+      if (data.date)        document.getElementById("f-date").value     = data.date;
+      if (data.amount)      document.getElementById("f-amount").value   = data.amount;
+      if (data.gst)         document.getElementById("f-gst").value      = data.gst;
+      if (data.category)    document.getElementById("f-category").value = data.category;
+      if (data.description) document.getElementById("f-desc").value     = data.description;
+      resultEl.innerHTML = `<strong>✅ Scanned:</strong> ${data.merchant || ""} · ${data.date || ""} · ${data.amount ? "$"+data.amount : ""} · ${CATS[data.category]?.label || data.category || ""}<br><span style="font-size:11px">Review the fields below and click Save.</span>`;
+      _setTab("manual");
     } catch(err) {
       resultEl.innerHTML = `<strong style="color:var(--danger)">✗ Scan failed:</strong> ${err.message}`;
     }
   }
 
-  document.getElementById("btn-scan-photo").addEventListener("click", () =>
-    _doScan(key => scanReceiptImage(_receiptFile, key))
-  );
-  document.getElementById("btn-scan-email").addEventListener("click", () => {
-    const text = document.getElementById("f-email-text").value.trim();
-    if (!text) { _showToast("Paste some email text first", "error"); return; }
-    _doScan(key => scanEmailText(text, key));
-  });
+  document.getElementById("btn-scan-email").addEventListener("click", _doEmailScan);
 
   // ── Save ────────────────────────────────────────────────────────────────────
   document.getElementById("deduction-form").addEventListener("submit", async e => {
@@ -576,16 +638,17 @@
       createdBy:     _user.uid,
     };
 
-    // Upload receipt image to Firebase Storage if present
-    if (_receiptFile) {
+    // Upload first receipt image to Firebase Storage if present
+    const uploadFile = _receiptFiles[0];
+    if (uploadFile) {
       try {
         const { getStorage, ref, uploadBytes, getDownloadURL } =
           await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js");
         const storage = getStorage();
         const id  = _editId || Date.now().toString();
-        const ext = _receiptFile.name.split(".").pop();
+        const ext = uploadFile.name.split(".").pop();
         const storageRef = ref(storage, `receipts/${_user.uid}/${id}.${ext}`);
-        const snap = await uploadBytes(storageRef, _receiptFile);
+        const snap = await uploadBytes(storageRef, uploadFile);
         payload.receiptUrl = await getDownloadURL(snap.ref);
       } catch(err) {
         console.warn("Receipt upload failed:", err.message);
