@@ -282,8 +282,8 @@
 
 <script src="firebase-config.js"></script>
 <script type="module">
-  import { initFirebase, onAuth, signOutUser, getUserSettings } from "./js/auth.js";
-  import { subscribeDeductions, addDeduction, updateDeduction, deleteDeduction } from "./js/db.js";
+  import { initFirebase, onAuth, signOutUser } from "./js/auth.js";
+  import { subscribeDeductions, addDeduction, updateDeduction, deleteDeduction, getUserSettings } from "./js/db.js";
   import { scanReceiptImage, scanEmailText } from "./js/claude-scan.js";
 
   initFirebase();
