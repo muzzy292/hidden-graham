@@ -78,6 +78,29 @@ export async function deleteBudget(id) {
   return deleteDoc(doc(db, "household", "shared", "budgets", id));
 }
 
+// ── Deductions ────────────────────────────────────────────────────────────────
+
+const DEDUCTIONS_PATH = () => collection(db, "household", "shared", "deductions");
+
+export function subscribeDeductions(onChange) {
+  const q = query(DEDUCTIONS_PATH(), orderBy("date", "desc"));
+  return onSnapshot(q, snap => {
+    onChange(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+  });
+}
+
+export async function addDeduction(item) {
+  return addDoc(DEDUCTIONS_PATH(), { ...item, createdAt: new Date().toISOString() });
+}
+
+export async function updateDeduction(id, patch) {
+  return updateDoc(doc(db, "household", "shared", "deductions", id), patch);
+}
+
+export async function deleteDeduction(id) {
+  return deleteDoc(doc(db, "household", "shared", "deductions", id));
+}
+
 // ── User settings ─────────────────────────────────────────────────────────────
 
 const userSettingsRef = (uid) => doc(db, "users", uid, "private", "settings");

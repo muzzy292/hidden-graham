@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tax — Our Compass</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    .tax-wrap { padding: 24px; max-width: 900px; margin: 0 auto; }
+
+    .tax-toolbar {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 24px; flex-wrap: wrap; gap: 12px;
+    }
+    .tax-toolbar h2 { font-size: 1.2rem; font-weight: 700; }
+
+    .fy-select {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); color: var(--text);
+      font-family: inherit; font-size: 14px; padding: 7px 12px;
+    }
+
+    /* Summary cards */
+    .tax-summary {
+      display: grid; grid-template-columns: repeat(4, 1fr);
+      gap: 12px; margin-bottom: 24px;
+    }
+    .tax-stat {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 16px 18px;
+      box-shadow: var(--shadow);
+    }
+    .tax-stat .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); margin-bottom: 6px; }
+    .tax-stat .value { font-size: 1.5rem; font-weight: 700; color: var(--accent); }
+    .tax-stat .sub   { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+    /* Category breakdown */
+    .cat-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 8px; margin-bottom: 24px;
+    }
+    .cat-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); padding: 12px 14px;
+      cursor: pointer; transition: border-color 0.15s;
+    }
+    .cat-card:hover, .cat-card.active { border-color: var(--accent); }
+    .cat-card.active { background: var(--surface2); }
+    .cat-name  { font-size: 12px; font-weight: 600; margin-bottom: 4px; }
+    .cat-amount { font-size: 1rem; font-weight: 700; }
+    .cat-count { font-size: 11px; color: var(--text-muted); }
+
+    /* Deduction list */
+    .deduction-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 16px 18px;
+      margin-bottom: 10px; display: flex; gap: 16px;
+      align-items: flex-start; box-shadow: var(--shadow);
+    }
+    .deduction-date {
+      background: var(--accent); border-radius: var(--radius-sm);
+      padding: 6px 10px; text-align: center; min-width: 48px; flex-shrink: 0; color: #fff;
+    }
+    .deduction-date .day   { font-size: 1.2rem; font-weight: 700; line-height: 1; }
+    .deduction-date .month { font-size: 10px; text-transform: uppercase; opacity: 0.85; }
+    .deduction-body { flex: 1; }
+    .deduction-merchant { font-size: 15px; font-weight: 600; margin-bottom: 2px; }
+    .deduction-desc { font-size: 12px; color: var(--text-muted); margin-bottom: 6px; }
+    .deduction-meta { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .cat-badge {
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.5px; padding: 2px 8px; border-radius: 4px;
+      background: rgba(193,96,58,0.12); color: var(--accent);
+    }
+    .deduction-amount { font-size: 1.1rem; font-weight: 700; flex-shrink: 0; text-align: right; }
+    .deduction-gst    { font-size: 11px; color: var(--text-muted); text-align: right; }
+    .deduction-actions { display: flex; gap: 4px; opacity: 0; transition: opacity 0.15s; }
+    .deduction-card:hover .deduction-actions { opacity: 1; }
+    .receipt-thumb {
+      width: 48px; height: 48px; border-radius: var(--radius-sm);
+      object-fit: cover; border: 1px solid var(--border); cursor: pointer; flex-shrink: 0;
+    }
+
+    .empty-state { text-align: center; padding: 60px 20px; color: var(--text-muted); }
+
+    /* Scan tabs */
+    .scan-tabs { display: flex; gap: 0; margin-bottom: 16px; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; }
+    .scan-tab {
+      flex: 1; padding: 9px; text-align: center; cursor: pointer;
+      font-size: 13px; font-weight: 500; color: var(--text-muted);
+      background: var(--surface2); border: none; transition: all 0.15s;
+    }
+    .scan-tab.active { background: var(--accent); color: #fff; }
+
+    .drop-zone {
+      border: 2px dashed var(--border); border-radius: var(--radius-sm);
+      padding: 32px 16px; text-align: center; cursor: pointer;
+      color: var(--text-muted); font-size: 13px; transition: all 0.15s;
+      margin-bottom: 12px;
+    }
+    .drop-zone:hover, .drop-zone.dragover { border-color: var(--accent); color: var(--accent); background: rgba(193,96,58,0.04); }
+    .drop-zone img { max-height: 160px; max-width: 100%; border-radius: 4px; margin-top: 8px; }
+
+    .scan-result {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); padding: 10px 12px;
+      font-size: 12px; color: var(--text-muted); margin-bottom: 12px;
+      display: none;
+    }
+    .scan-result.show { display: block; }
+    .scan-result strong { color: var(--accent); }
+
+    @media (max-width: 640px) {
+      .tax-summary { grid-template-columns: 1fr 1fr; }
+      .deduction-card { flex-wrap: wrap; }
+    }
+  </style>
+  <link rel="manifest" href="/hidden-graham/manifest.json">
+  <meta name="theme-color" content="#6c63ff">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Our Compass">
+  <link rel="apple-touch-icon" href="/hidden-graham/icons/icon.svg">
+  <script type="module" src="/hidden-graham/js/pwa.js"></script>
+  <script type="module" src="/hidden-graham/js/nav.js"></script>
+</head>
+<body>
+
+<nav id="app-nav">
+  <span class="logo">🧭 Our Compass</span>
+  <button class="nav-hamburger" id="nav-hamburger" aria-label="Menu">☰</button>
+  <div class="nav-right">
+    <a href="dashboard.html" class="btn btn-ghost btn-sm">Home</a>
+    <a href="app.html"       class="btn btn-ghost btn-sm">Goals</a>
+    <a href="events.html"    class="btn btn-ghost btn-sm">Events</a>
+    <a href="budget.html"    class="btn btn-ghost btn-sm">Budget</a>
+    <a href="decisions.html" class="btn btn-ghost btn-sm">Decisions</a>
+    <a href="tax.html"       class="btn btn-ghost btn-sm" style="color:var(--accent)">Tax</a>
+    <a href="settings.html"  class="btn btn-ghost btn-icon" title="Settings">⚙</a>
+    <div class="user-avatar" id="user-avatar"></div>
+    <button class="btn btn-ghost btn-sm" id="btn-signout">Sign out</button>
+  </div>
+</nav>
+<div id="nav-mobile-menu" class="nav-mobile-menu">
+  <a href="dashboard.html" class="btn btn-ghost btn-sm">🏠 Home</a>
+  <a href="app.html"       class="btn btn-ghost btn-sm">🎯 Goals</a>
+  <a href="events.html"    class="btn btn-ghost btn-sm">📅 Events</a>
+  <a href="budget.html"    class="btn btn-ghost btn-sm">💰 Budget</a>
+  <a href="decisions.html" class="btn btn-ghost btn-sm">🤔 Decisions</a>
+  <a href="tax.html"       class="btn btn-ghost btn-sm">🧾 Tax</a>
+  <a href="settings.html"  class="btn btn-ghost btn-sm">⚙️ Settings</a>
+  <button class="btn btn-ghost btn-sm" id="mobile-signout">Sign out</button>
+</div>
+
+<div class="tax-wrap">
+  <div class="tax-toolbar">
+    <div>
+      <h2>🧾 Tax Deductions</h2>
+      <div style="font-size:12px;color:var(--text-muted);margin-top:2px">Track receipts and emails for your ATO return</div>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <select class="fy-select" id="fy-select"></select>
+      <button class="btn btn-secondary btn-sm" id="btn-export">⬇ Export CSV</button>
+      <button class="btn btn-primary" id="btn-add">+ Add Deduction</button>
+    </div>
+  </div>
+
+  <!-- Summary -->
+  <div class="tax-summary">
+    <div class="tax-stat">
+      <div class="label">Total Deductions</div>
+      <div class="value" id="stat-total">$0</div>
+      <div class="sub">inc GST</div>
+    </div>
+    <div class="tax-stat">
+      <div class="label">Ex GST</div>
+      <div class="value" id="stat-ex-gst">$0</div>
+      <div class="sub">claimable amount</div>
+    </div>
+    <div class="tax-stat">
+      <div class="label">GST Credits</div>
+      <div class="value" id="stat-gst">$0</div>
+      <div class="sub">if GST registered</div>
+    </div>
+    <div class="tax-stat">
+      <div class="label">Receipts</div>
+      <div class="value" id="stat-count">0</div>
+      <div class="sub">recorded this FY</div>
+    </div>
+  </div>
+
+  <!-- Category breakdown -->
+  <div class="cat-grid" id="cat-grid"></div>
+
+  <!-- Deductions list -->
+  <div id="deductions-list"><div class="empty-state">No deductions yet — add your first one!</div></div>
+</div>
+
+<!-- Add / Edit modal -->
+<div class="modal-backdrop hidden" id="modal-backdrop">
+  <div class="modal" style="max-width:560px">
+    <h3 id="modal-title">Add Deduction</h3>
+
+    <!-- Scan section -->
+    <div id="scan-section">
+      <div class="scan-tabs">
+        <button class="scan-tab active" id="tab-photo" type="button">📷 Receipt Photo</button>
+        <button class="scan-tab" id="tab-email" type="button">📧 Paste Email</button>
+        <button class="scan-tab" id="tab-manual" type="button">✏️ Manual</button>
+      </div>
+
+      <div id="pane-photo">
+        <div class="drop-zone" id="drop-zone">
+          <div id="drop-label">📷 Tap to photograph or upload receipt</div>
+          <input type="file" id="f-receipt-file" accept="image/*,application/pdf" style="display:none" capture="environment">
+        </div>
+        <button class="btn btn-primary btn-sm" id="btn-scan-photo" type="button" style="width:100%;justify-content:center;margin-bottom:12px" disabled>
+          ✨ Scan with Claude
+        </button>
+      </div>
+
+      <div id="pane-email" style="display:none">
+        <textarea id="f-email-text" placeholder="Paste your email text or invoice text here…" style="height:120px;margin-bottom:8px"></textarea>
+        <button class="btn btn-primary btn-sm" id="btn-scan-email" type="button" style="width:100%;justify-content:center;margin-bottom:12px">
+          ✨ Scan with Claude
+        </button>
+      </div>
+
+      <div class="scan-result" id="scan-result"></div>
+    </div>
+
+    <form id="deduction-form">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Merchant / Supplier *</label>
+          <input type="text" id="f-merchant" placeholder="e.g. Officeworks" required>
+        </div>
+        <div class="form-group">
+          <label>Date *</label>
+          <input type="date" id="f-date" required>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Amount (inc GST) *</label>
+          <input type="number" id="f-amount" placeholder="0.00" step="0.01" min="0" required>
+        </div>
+        <div class="form-group">
+          <label>GST</label>
+          <input type="number" id="f-gst" placeholder="0.00" step="0.01" min="0">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>ATO Category *</label>
+        <select id="f-category" required>
+          <option value="">— Select category —</option>
+          <option value="work-related">💼 Work-related expenses</option>
+          <option value="vehicle-travel">🚗 Vehicle & travel</option>
+          <option value="home-office">🏠 Home office</option>
+          <option value="phone-internet">📱 Phone & internet</option>
+          <option value="self-education">📚 Self-education</option>
+          <option value="donations">❤️ Donations</option>
+          <option value="investment">📈 Investment & rental</option>
+          <option value="other">📌 Other</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Description</label>
+        <textarea id="f-desc" placeholder="What was purchased and why it's deductible…" style="min-height:60px"></textarea>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" id="modal-cancel">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="toast" class="hidden"></div>
+
+<script src="firebase-config.js"></script>
+<script type="module">
+  import { initFirebase, onAuth, signOutUser, getUserSettings } from "./js/auth.js";
+  import { subscribeDeductions, addDeduction, updateDeduction, deleteDeduction } from "./js/db.js";
+  import { scanReceiptImage, scanEmailText } from "./js/claude-scan.js";
+  import { getStorage, ref, uploadBytes, getDownloadURL }
+    from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
+
+  initFirebase();
+
+  const CATS = {
+    "work-related":   { label: "Work-related",    emoji: "💼" },
+    "vehicle-travel": { label: "Vehicle & Travel", emoji: "🚗" },
+    "home-office":    { label: "Home Office",      emoji: "🏠" },
+    "phone-internet": { label: "Phone & Internet", emoji: "📱" },
+    "self-education": { label: "Self-Education",   emoji: "📚" },
+    "donations":      { label: "Donations",        emoji: "❤️" },
+    "investment":     { label: "Investment",       emoji: "📈" },
+    "other":          { label: "Other",            emoji: "📌" },
+  };
+
+  let _deductions = [];
+  let _fy         = _currentFY();
+  let _catFilter  = null;
+  let _editId     = null;
+  let _claudeKey  = null;
+  let _user       = null;
+  let _receiptFile = null;
+  let _storage    = null;
+  let _activeTab  = "photo";
+
+  // ── Financial year helpers ──────────────────────────────────────────────────
+  function _currentFY() {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = now.getMonth() + 1;
+    return m >= 7 ? `${y}-${String(y+1).slice(2)}` : `${y-1}-${String(y).slice(2)}`;
+  }
+
+  function _populateFYSelect() {
+    const sel = document.getElementById("fy-select");
+    const cur = _currentFY();
+    const [startY] = cur.split("-").map(Number);
+    const years = [];
+    for (let y = startY; y >= startY - 4; y--) {
+      years.push(`${y}-${String(y+1).slice(2)}`);
+    }
+    sel.innerHTML = years.map(fy =>
+      `<option value="${fy}" ${fy === _fy ? "selected" : ""}>${fy} FY</option>`
+    ).join("");
+    sel.addEventListener("change", () => { _fy = sel.value; _render(); });
+  }
+
+  // ── Auth ────────────────────────────────────────────────────────────────────
+  onAuth(async user => {
+    if (!user) { window.location.href = "index.html"; return; }
+    _user = user;
+    document.getElementById("user-avatar").textContent =
+      (user.displayName || user.email).split(" ").slice(0,2).map(w => w[0].toUpperCase()).join("");
+    document.getElementById("btn-signout").addEventListener("click", signOutUser);
+
+    try { _storage = getStorage(); } catch(e) { /* Storage not enabled — uploads disabled */ }
+
+    const settings = await getUserSettings(user.uid).catch(() => ({}));
+    _claudeKey = settings.claudeKey || null;
+
+    _populateFYSelect();
+    subscribeDeductions(items => { _deductions = items; _render(); });
+  });
+
+  // ── Render ──────────────────────────────────────────────────────────────────
+  function _filtered() {
+    return _deductions.filter(d =>
+      d.financialYear === _fy && (!_catFilter || d.category === _catFilter)
+    );
+  }
+
+  function _allFY() {
+    return _deductions.filter(d => d.financialYear === _fy);
+  }
+
+  function _render() {
+    const all      = _allFY();
+    const filtered = _filtered();
+
+    const total   = all.reduce((s, d) => s + (d.amount || 0), 0);
+    const gst     = all.reduce((s, d) => s + (d.gst || 0), 0);
+    const exGst   = total - gst;
+
+    document.getElementById("stat-total").textContent  = _fmt(total);
+    document.getElementById("stat-ex-gst").textContent = _fmt(exGst);
+    document.getElementById("stat-gst").textContent    = _fmt(gst);
+    document.getElementById("stat-count").textContent  = all.length;
+
+    _renderCats(all);
+    _renderList(filtered);
+  }
+
+  function _renderCats(all) {
+    const totals = {};
+    const counts = {};
+    all.forEach(d => {
+      totals[d.category] = (totals[d.category] || 0) + (d.amount || 0);
+      counts[d.category] = (counts[d.category] || 0) + 1;
+    });
+
+    const grid = document.getElementById("cat-grid");
+    const entries = Object.entries(totals).sort((a, b) => b[1] - a[1]);
+    if (!entries.length) { grid.innerHTML = ""; return; }
+
+    grid.innerHTML = `
+      <div class="cat-card${!_catFilter ? " active" : ""}" data-cat="">
+        <div class="cat-name">All categories</div>
+        <div class="cat-amount">${_fmt(entries.reduce((s,[,v])=>s+v,0))}</div>
+        <div class="cat-count">${all.length} receipts</div>
+      </div>` +
+      entries.map(([cat, amt]) => `
+        <div class="cat-card${_catFilter === cat ? " active" : ""}" data-cat="${cat}">
+          <div class="cat-name">${CATS[cat]?.emoji || ""} ${CATS[cat]?.label || cat}</div>
+          <div class="cat-amount">${_fmt(amt)}</div>
+          <div class="cat-count">${counts[cat]} receipt${counts[cat] > 1 ? "s" : ""}</div>
+        </div>`).join("");
+
+    grid.querySelectorAll(".cat-card").forEach(c => {
+      c.addEventListener("click", () => {
+        _catFilter = c.dataset.cat || null;
+        _render();
+      });
+    });
+  }
+
+  function _renderList(items) {
+    const list = document.getElementById("deductions-list");
+    if (!items.length) {
+      list.innerHTML = `<div class="empty-state">${_catFilter ? "No deductions in this category." : "No deductions yet — add your first one!"}</div>`;
+      return;
+    }
+    list.innerHTML = items.map(d => {
+      const dt  = d.date ? new Date(d.date + "T12:00:00") : null;
+      const day = dt ? dt.getDate() : "?";
+      const mon = dt ? dt.toLocaleDateString("en-AU", { month: "short" }) : "";
+      const exGst = (d.amount || 0) - (d.gst || 0);
+      return `
+        <div class="deduction-card" data-id="${d.id}">
+          <div class="deduction-date">
+            <div class="day">${day}</div>
+            <div class="month">${mon}</div>
+          </div>
+          ${d.receiptUrl ? `<img class="receipt-thumb" src="${d.receiptUrl}" alt="Receipt" onclick="window.open('${d.receiptUrl}')">` : ""}
+          <div class="deduction-body">
+            <div class="deduction-merchant">${_esc(d.merchant || "Unknown")}</div>
+            ${d.description ? `<div class="deduction-desc">${_esc(d.description)}</div>` : ""}
+            <div class="deduction-meta">
+              <span class="cat-badge">${CATS[d.category]?.emoji || ""} ${CATS[d.category]?.label || d.category || ""}</span>
+              ${d.gst ? `<span style="font-size:11px;color:var(--text-muted)">GST ${_fmt(d.gst)}</span>` : ""}
+              <span style="font-size:11px;color:var(--text-muted)">Ex GST ${_fmt(exGst)}</span>
+            </div>
+          </div>
+          <div style="text-align:right;flex-shrink:0">
+            <div class="deduction-amount">${_fmt(d.amount || 0)}</div>
+            <div class="deduction-actions" style="justify-content:flex-end;margin-top:6px">
+              <button class="btn btn-ghost btn-icon btn-edit" title="Edit">✎</button>
+              <button class="btn btn-ghost btn-icon btn-del" title="Delete">✕</button>
+            </div>
+          </div>
+        </div>`;
+    }).join("");
+
+    list.querySelectorAll(".btn-edit").forEach(btn => {
+      const id = btn.closest("[data-id]").dataset.id;
+      btn.addEventListener("click", () => _openModal(_deductions.find(d => d.id === id)));
+    });
+    list.querySelectorAll(".btn-del").forEach(btn => {
+      const id = btn.closest("[data-id]").dataset.id;
+      btn.addEventListener("click", async () => {
+        if (confirm("Delete this deduction?")) await deleteDeduction(id);
+      });
+    });
+  }
+
+  // ── Modal ───────────────────────────────────────────────────────────────────
+  function _openModal(item) {
+    _editId       = item?.id || null;
+    _receiptFile  = null;
+    document.getElementById("modal-title").textContent = item ? "Edit Deduction" : "Add Deduction";
+    document.getElementById("f-merchant").value = item?.merchant  || "";
+    document.getElementById("f-date").value     = item?.date      || "";
+    document.getElementById("f-amount").value   = item?.amount    || "";
+    document.getElementById("f-gst").value      = item?.gst       || "";
+    document.getElementById("f-category").value = item?.category  || "";
+    document.getElementById("f-desc").value     = item?.description || "";
+    document.getElementById("scan-result").classList.remove("show");
+    document.getElementById("f-email-text").value = "";
+    document.getElementById("drop-label").innerHTML = "📷 Tap to photograph or upload receipt";
+    document.getElementById("btn-scan-photo").disabled = true;
+    _setTab("photo");
+    document.getElementById("modal-backdrop").classList.remove("hidden");
+    document.getElementById("f-merchant").focus();
+  }
+
+  function _closeModal() {
+    document.getElementById("modal-backdrop").classList.add("hidden");
+    _editId = null;
+    _receiptFile = null;
+  }
+
+  document.getElementById("btn-add").addEventListener("click", () => _openModal(null));
+  document.getElementById("modal-cancel").addEventListener("click", _closeModal);
+  document.getElementById("modal-backdrop").addEventListener("click", e => {
+    if (e.target === e.currentTarget) _closeModal();
+  });
+
+  // ── Tabs ────────────────────────────────────────────────────────────────────
+  function _setTab(tab) {
+    _activeTab = tab;
+    document.getElementById("pane-photo").style.display  = tab === "photo"  ? "" : "none";
+    document.getElementById("pane-email").style.display  = tab === "email"  ? "" : "none";
+    document.getElementById("scan-section").style.display = tab === "manual" ? "none" : "";
+    ["photo","email","manual"].forEach(t =>
+      document.getElementById(`tab-${t}`).classList.toggle("active", t === tab));
+  }
+  document.getElementById("tab-photo").addEventListener("click",  () => _setTab("photo"));
+  document.getElementById("tab-email").addEventListener("click",  () => _setTab("email"));
+  document.getElementById("tab-manual").addEventListener("click", () => _setTab("manual"));
+
+  // ── Receipt drop zone ───────────────────────────────────────────────────────
+  const dropZone = document.getElementById("drop-zone");
+  const fileInput = document.getElementById("f-receipt-file");
+
+  dropZone.addEventListener("click", () => fileInput.click());
+  dropZone.addEventListener("dragover", e => { e.preventDefault(); dropZone.classList.add("dragover"); });
+  dropZone.addEventListener("dragleave", () => dropZone.classList.remove("dragover"));
+  dropZone.addEventListener("drop", e => {
+    e.preventDefault(); dropZone.classList.remove("dragover");
+    const file = e.dataTransfer.files[0];
+    if (file) _setReceiptFile(file);
+  });
+  fileInput.addEventListener("change", () => {
+    if (fileInput.files[0]) _setReceiptFile(fileInput.files[0]);
+  });
+
+  function _setReceiptFile(file) {
+    _receiptFile = file;
+    document.getElementById("btn-scan-photo").disabled = false;
+    const lbl = document.getElementById("drop-label");
+    if (file.type.startsWith("image/")) {
+      const url = URL.createObjectURL(file);
+      lbl.innerHTML = `<img src="${url}" style="max-height:160px;max-width:100%;border-radius:4px"><div style="margin-top:6px">${file.name}</div>`;
+    } else {
+      lbl.innerHTML = `📄 ${file.name}`;
+    }
+  }
+
+  // ── Claude scan ─────────────────────────────────────────────────────────────
+  async function _doScan(scanFn) {
+    if (!_claudeKey) { _showToast("Add your Claude API key in Settings first", "error"); return; }
+    const resultEl = document.getElementById("scan-result");
+    resultEl.classList.add("show");
+    resultEl.textContent = "✨ Scanning…";
+    try {
+      const data = await scanFn(_claudeKey);
+      if (data.error) throw new Error(data.error);
+      if (data.merchant)  document.getElementById("f-merchant").value = data.merchant;
+      if (data.date)      document.getElementById("f-date").value     = data.date;
+      if (data.amount)    document.getElementById("f-amount").value   = data.amount;
+      if (data.gst)       document.getElementById("f-gst").value      = data.gst;
+      if (data.category)  document.getElementById("f-category").value = data.category;
+      if (data.description) document.getElementById("f-desc").value   = data.description;
+      resultEl.innerHTML = `<strong>✅ Scanned:</strong> ${data.merchant || ""} · ${data.date || ""} · ${data.amount ? "$"+data.amount : ""} · ${CATS[data.category]?.label || data.category || ""}`;
+    } catch(err) {
+      resultEl.innerHTML = `<strong style="color:var(--danger)">✗ Scan failed:</strong> ${err.message}`;
+    }
+  }
+
+  document.getElementById("btn-scan-photo").addEventListener("click", () =>
+    _doScan(key => scanReceiptImage(_receiptFile, key))
+  );
+  document.getElementById("btn-scan-email").addEventListener("click", () => {
+    const text = document.getElementById("f-email-text").value.trim();
+    if (!text) { _showToast("Paste some email text first", "error"); return; }
+    _doScan(key => scanEmailText(text, key));
+  });
+
+  // ── Save ────────────────────────────────────────────────────────────────────
+  document.getElementById("deduction-form").addEventListener("submit", async e => {
+    e.preventDefault();
+    const amount = parseFloat(document.getElementById("f-amount").value) || 0;
+    const gst    = parseFloat(document.getElementById("f-gst").value)    || 0;
+
+    const payload = {
+      financialYear: _fy,
+      merchant:      document.getElementById("f-merchant").value.trim(),
+      date:          document.getElementById("f-date").value,
+      amount,
+      gst,
+      amountExGst:   Math.round((amount - gst) * 100) / 100,
+      category:      document.getElementById("f-category").value,
+      description:   document.getElementById("f-desc").value.trim() || null,
+      createdBy:     _user.uid,
+    };
+
+    // Upload receipt image to Firebase Storage if present
+    if (_receiptFile && _storage) {
+      try {
+        const id  = _editId || Date.now().toString();
+        const ext = _receiptFile.name.split(".").pop();
+        const storageRef = ref(_storage, `receipts/${_user.uid}/${id}.${ext}`);
+        const snap = await uploadBytes(storageRef, _receiptFile);
+        payload.receiptUrl = await getDownloadURL(snap.ref);
+      } catch(err) {
+        console.warn("Receipt upload failed:", err.message);
+      }
+    }
+
+    if (_editId) {
+      await updateDeduction(_editId, payload);
+    } else {
+      await addDeduction(payload);
+    }
+    _closeModal();
+    _showToast(`Deduction saved!`, "success");
+  });
+
+  // ── Export CSV ──────────────────────────────────────────────────────────────
+  document.getElementById("btn-export").addEventListener("click", () => {
+    const rows = _allFY();
+    if (!rows.length) { _showToast("No deductions to export", "error"); return; }
+    const header = ["Date","Merchant","Category","Description","Amount (inc GST)","GST","Amount (ex GST)","Receipt URL"];
+    const lines  = [header.join(","), ...rows.map(d => [
+      d.date, `"${(d.merchant||"").replace(/"/g,'""')}"`,
+      d.category, `"${(d.description||"").replace(/"/g,'""')}"`,
+      d.amount, d.gst, d.amountExGst, d.receiptUrl || ""
+    ].join(","))];
+    const blob = new Blob([lines.join("\n")], { type: "text/csv" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `tax-deductions-${_fy}.csv`;
+    a.click();
+  });
+
+  // ── Helpers ─────────────────────────────────────────────────────────────────
+  function _fmt(n) { return "$" + Number(n).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ","); }
+  function _esc(s) { return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+  function _showToast(msg, type = "success") {
+    const t = document.getElementById("toast");
+    t.textContent = msg; t.className = type;
+    t.classList.remove("hidden");
+    setTimeout(() => t.classList.add("hidden"), 3500);
+  }
+</script>
+</body>
+</html>
