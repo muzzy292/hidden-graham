@@ -228,7 +228,7 @@
 
       <div id="pane-photo">
         <div class="drop-zone" id="drop-zone">
-          <div id="drop-label">📷 Tap to select or drag receipts here<br><span style="font-size:11px;opacity:0.7">Select multiple files at once</span></div>
+          <div id="drop-label">📷 Tap to select, drag, or <kbd style="background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:1px 5px;font-size:10px">Ctrl+V</kbd> paste a receipt<br><span style="font-size:11px;opacity:0.7">Select multiple files at once</span></div>
           <input type="file" id="f-receipt-file" accept="image/*,application/pdf" style="display:none" multiple>
         </div>
         <div id="file-list" style="display:none;margin-bottom:10px;display:flex;flex-direction:column;gap:6px"></div>
@@ -499,7 +499,7 @@
     document.getElementById("f-desc").value     = item?.description  || "";
     document.getElementById("scan-result").classList.remove("show");
     document.getElementById("f-email-text").value = "";
-    document.getElementById("drop-label").innerHTML = "📷 Tap to select or drag receipts here<br><span style=\"font-size:11px;opacity:0.7\">Select multiple files at once</span>";
+    document.getElementById("drop-label").innerHTML = "📷 Tap to select, drag, or <kbd style=\"background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:1px 5px;font-size:10px\">Ctrl+V</kbd> paste a receipt<br><span style=\"font-size:11px;opacity:0.7\">Select multiple files at once</span>";
     document.getElementById("btn-scan-photo").disabled = true;
     document.getElementById("file-list").innerHTML = "";
     document.getElementById("file-list").style.display = "none";
@@ -548,6 +548,26 @@
   });
   fileInput.addEventListener("change", () => {
     if (fileInput.files.length) _setReceiptFiles([...fileInput.files]);
+  });
+
+  // ── Clipboard paste (Ctrl+V / mobile copy-paste) ────────────────────────────
+  document.addEventListener("paste", e => {
+    // Only fire when the photo tab modal is open
+    const modalOpen = !document.getElementById("modal-backdrop").classList.contains("hidden");
+    if (!modalOpen || _activeTab !== "photo") return;
+
+    const items = Array.from(e.clipboardData?.items || []);
+    const imageItems = items.filter(it => it.kind === "file" && it.type.startsWith("image/"));
+    if (!imageItems.length) return;
+
+    e.preventDefault();
+    const files = imageItems.map((it, i) => {
+      const blob = it.getAsFile();
+      // Give it a sensible filename if the browser doesn't supply one
+      const ext  = it.type.split("/")[1] || "png";
+      return new File([blob], blob.name || `pasted-receipt-${i + 1}.${ext}`, { type: it.type });
+    });
+    _setReceiptFiles(files);
   });
 
   function _setReceiptFiles(files) {
