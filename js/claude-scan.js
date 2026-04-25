@@ -29,24 +29,23 @@ Rules:
 - Use null only if a field truly cannot be determined
 - Do NOT return the receipt total as a line item`;
 
-async function _callClaude(messages, apiKey) {
+// beta = optional Anthropic beta header value (e.g. "pdfs-2024-09-25")
+async function _callClaude(messages, apiKey, beta = null) {
+  const headers = {
+    "Content-Type":      "application/json",
+    "x-api-key":         apiKey,
+    "anthropic-version": "2023-06-01",
+  };
+  if (beta) headers["anthropic-beta"] = beta;
+
   let resp;
   try {
     resp = await fetch(PROXY, {
       method: "POST",
-      headers: {
-        "Content-Type":      "application/json",
-        "x-api-key":         apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        max_tokens: 1024,
-        messages
-      })
+      headers,
+      body: JSON.stringify({ model: MODEL, max_tokens: 1024, messages })
     });
   } catch (netErr) {
-    // Network-level failure (no response at all)
     throw new Error(`Network error — check your internet connection or API key. (${netErr.message})`);
   }
 
@@ -58,7 +57,6 @@ async function _callClaude(messages, apiKey) {
 
   const data = await resp.json();
   const text = data.content?.[0]?.text || "";
-  // Try array first, then object (wrap single object in array)
   const arrMatch = text.match(/\[[\s\S]*\]/);
   if (arrMatch) return JSON.parse(arrMatch[0]);
   const objMatch = text.match(/\{[\s\S]*\}/);
@@ -67,7 +65,7 @@ async function _callClaude(messages, apiKey) {
 }
 
 // Compress image to max 1200px, JPEG quality 0.75.
-// If result is still over MAX_B64_BYTES, halve dimensions once more.
+// Falls back to 800px/0.65 if result is still too large.
 async function _compressImage(file) {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -84,15 +82,10 @@ async function _compressImage(file) {
         canvas.getContext("2d").drawImage(img, 0, 0, width, height);
         return canvas.toDataURL("image/jpeg", quality).split(",")[1];
       };
-
       URL.revokeObjectURL(url);
-
       let b64 = compress(1200, 0.75);
-      if (b64.length > MAX_B64_BYTES) {
-        // Still too big — compress harder
-        b64 = compress(800, 0.65);
-      }
-      console.log(`[claude-scan] compressed to ~${(b64.length / 1024).toFixed(0)} KB base64`);
+      if (b64.length > MAX_B64_BYTES) b64 = compress(800, 0.65);
+      console.log(`[claude-scan] image compressed to ~${(b64.length / 1024).toFixed(0)} KB base64`);
       resolve(b64);
     };
     img.onerror = reject;
@@ -101,30 +94,34 @@ async function _compressImage(file) {
 }
 
 export async function scanReceiptImage(file, apiKey) {
-  let base64, mimeType;
-
   if (file.type === "application/pdf") {
-    // PDFs: read raw — warn if large
-    base64 = await new Promise((resolve, reject) => {
+    // PDFs use the document content type + pdf beta header
+    const base64 = await new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload  = e => resolve(e.target.result.split(",")[1]);
       reader.onerror = reject;
       reader.readAsDataURL(file);
     });
     if (base64.length > MAX_B64_BYTES) {
-      throw new Error(`PDF is too large (${(base64.length / 1024 / 1024).toFixed(1)} MB). Try scanning a photo of the receipt instead.`);
+      throw new Error(`PDF is too large (${(base64.length / 1024 / 1024).toFixed(1)} MB). Try a photo of the receipt instead.`);
     }
-    mimeType = "application/pdf";
-  } else {
-    base64   = await _compressImage(file);
-    mimeType = "image/jpeg";
+    console.log(`[claude-scan] PDF ~${(base64.length / 1024).toFixed(0)} KB base64`);
+    return _callClaude([{
+      role: "user",
+      content: [
+        { type: "document", source: { type: "base64", media_type: "application/pdf", data: base64 } },
+        { type: "text", text: PROMPT }
+      ]
+    }], apiKey, "pdfs-2024-09-25");
   }
 
+  // Images — compress before sending
+  const base64 = await _compressImage(file);
   return _callClaude([{
     role: "user",
     content: [
-      { type: "image", source: { type: "base64", media_type: mimeType, data: base64 } },
-      { type: "text",  text: PROMPT }
+      { type: "image", source: { type: "base64", media_type: "image/jpeg", data: base64 } },
+      { type: "text", text: PROMPT }
     ]
   }], apiKey);
 }
